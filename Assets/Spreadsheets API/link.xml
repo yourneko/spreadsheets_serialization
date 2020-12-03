@@ -1,0 +1,39 @@
+<linker>
+	<assembly fullname="Newtonsoft.Json">
+		<namespace fullname="Newtonsoft.Json" preserve="all"/>
+	</assembly>
+	<assembly fullname="Google.Apis">
+		<namespace fullname="Google.Apis" preserve="all"/>
+		<namespace fullname="Google.Apis.Download" preserve="all"/>
+		<namespace fullname="Google.Apis.Media" preserve="all"/>
+		<namespace fullname="Google.Apis.Requests" preserve="all"/>
+		<namespace fullname="Google.Apis.Services" preserve="all"/>
+		<namespace fullname="Google.Apis.Upload" preserve="all"/>
+		<namespace fullname="Google.Apis.Util.Store" preserve="all"/>
+	</assembly>
+	<assembly fullname="Google.Apis.Auth">
+		<namespace fullname="Google.Apis.Auth" preserve="all"/>
+		<namespace fullname="Google.Apis.Auth.OAuth2" preserve="all"/>
+		<namespace fullname="Google.Apis.Auth.OAuth2.Flows" preserve="all"/>
+		<namespace fullname="Google.Apis.Auth.OAuth2.Requests" preserve="all"/>
+		<namespace fullname="Google.Apis.Auth.OAuth2.Responses" preserve="all"/>
+		<namespace fullname="Google.Apis.Auth.OAuth2.Web" preserve="all"/>
+	</assembly>
+	<assembly fullname="Google.Apis.Core">
+		<namespace fullname="Google" preserve="all"/>
+		<namespace fullname="Google.Apis" preserve="all"/>
+		<namespace fullname="Google.Apis.Discovery" preserve="all"/>
+		<namespace fullname="Google.Apis.Http" preserve="all"/>
+		<namespace fullname="Google.Apis.Json" preserve="all"/>
+		<namespace fullname="Google.Apis.Logging" preserve="all"/>
+		<namespace fullname="Google.Apis.Requests" preserve="all"/>
+		<namespace fullname="Google.Apis.Requests.Parameters" preserve="all"/>
+		<namespace fullname="Google.Apis.Testing" preserve="all"/>
+		<namespace fullname="Google.Apis.Util" preserve="all"/>
+		<namespace fullname="Google.Apis.Util.Store" preserve="all"/>
+	</assembly>
+	<assembly fullname="Google.Apis.Sheets.v4">
+		<namespace fullname="Google.Apis.Sheets.v4" preserve="all"/>
+		<namespace fullname="Google.Apis.Sheets.v4.Data" preserve="all"/>
+	</assembly>
+</linker>
