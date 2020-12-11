@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Mimimi.SpreadsheetsSerialization
+namespace Mimimi.SpreadsheetsSerialization.Core
 {
     public class DisposableObject : IDisposable
     {

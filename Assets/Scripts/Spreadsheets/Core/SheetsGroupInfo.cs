@@ -2,7 +2,6 @@
 using System.Linq;
 using System.Reflection;
 using System.Collections.Generic;
-using Mimimi.Tools;
 using Google.Apis.Sheets.v4.Data;
 
 namespace Mimimi.SpreadsheetsSerialization.Core
@@ -21,71 +20,62 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 
         private readonly Dictionary<FieldInfo, FieldMappingDetails> names;
         private readonly FlexibleArray<FieldInfo> fields;
-        private readonly List<string> rangeList;
 
         public string Name => $"Requested type '{type.Name}'";
 
         private IEnumerable<FieldMappingDetails> RequiredFields => names.Select (x => x.Value).Where (x => x.dimensions == 0);
         private IEnumerable<FieldMappingDetails> IndexedFields => names.Select (x => x.Value).Where (x => x.dimensions > 0);
+        private IEnumerable<FieldMappingDetails> GetRequired(SpaceRequired _space) => RequiredFields.Where (x => x.space == _space);
 
         public SheetsGroupInfo(Type _type, string _parametrizedName = PARAM)
         {
             UnityEngine.Debug.Assert (!_parametrizedName.Contains ('#'));
-            rangeList = new List<string> ();
-            fields = ClassMapping.GetClassFields (_type);
 
+            fields = ClassMapping.GetClassFields (_type);
+            names = new Dictionary<FieldInfo, FieldMappingDetails> ();
             type = _type;
             parametrizedName = string.Format (_parametrizedName, ClassMapping.GetParametrizedSheetName (type));
-            hasSmallerElements = fields.GetValues ().Any (x => ClassMapping.GetTypeSpaceRequirement (GetFieldMappedType (x)) < SpaceRequired.Sheet);
+            hasSmallerElements = fields.GetValues ().Any (x => ClassMapping.GetTypeSpaceRequirement (x.GetFieldDimensionsTypes ().Last ()) < SpaceRequired.Sheet);
             if (hasSmallerElements)
                 baseSheetName = string.Format (_parametrizedName, ClassMapping.GetSheetName (_type));
 
-            names = new Dictionary<FieldInfo, FieldMappingDetails> ();
-            foreach (var field in fields.GetValues())
-            {
-                Type fieldType = GetFieldMappedType (field);
-                int fieldDimensions = field.GetDimensions ().Length;
-                SpaceRequired sr = ClassMapping.GetTypeSpaceRequirement (fieldType);
+            foreach (var field in fields.GetValues ())
+                AddFieldDetails (field);
+        }
 
-                switch (sr)
-                {
-                    case SpaceRequired.SheetsGroup:
-                    case SpaceRequired.Sheet:
-                        names.Add (field, new FieldMappingDetails  (fieldType,
-                                                                    sr,
-                                                                    parametrizedName.Replace(PARAM, PARAM + IndicesString (fieldDimensions)),
-                                                                    fieldDimensions));
-                        break;
-                    default: break;
-                }
+        private void AddFieldDetails(FieldInfo field)
+        {
+            Type fieldType = field.GetFieldDimensionsTypes ().Last ();
+            int fieldDimensions = field.GetDimensions ().Length;
+            SpaceRequired sr = ClassMapping.GetTypeSpaceRequirement (fieldType);
+
+            switch (sr)
+            {
+                case SpaceRequired.SheetsGroup:
+                case SpaceRequired.Sheet:
+                    names.Add (field, new FieldMappingDetails (fieldType,
+                                                                sr,
+                                                                parametrizedName.Replace (PARAM, PARAM + IndicesString (fieldDimensions)),
+                                                                fieldDimensions));
+                    break;
+                default: break;
             }
         }
 
+        // Looking for required sheets only. All collections are considered empty.
         public IEnumerable<string> GetUnindexedSheetList()
         {
-            if (rangeList.Count == 0)
-            {
-                if (hasSmallerElements)
-                    rangeList.Add (SerializationHelpers.Range(baseSheetName, type));
-
-                foreach (var sheet in RequiredFields.Where (x => x.space == SpaceRequired.Sheet))
-                    rangeList.Add (SerializationHelpers.Range (sheet.parametrizedName, sheet.type));
-
-                var requiredGroups = RequiredFields.Where (x => x.space == SpaceRequired.SheetsGroup).ToArray ();
-                if (requiredGroups.Any ())
-                    foreach (var sheet in requiredGroups.SelectMany (x => GetUnindexedSheetList ()))
-                        rangeList.Add(sheet);
-            }
+            List<string> rangeList = GetRequired (SpaceRequired.Sheet).Select (sheet => SerializationHelpers.Range (sheet.parametrizedName, sheet.type)).ToList ();
+            RequiredFields.Where (x => x.space == SpaceRequired.SheetsGroup)
+                            .SelectMany (x => GetUnindexedSheetList ())
+                            .ToList ()
+                            .ForEach (rangeList.Add);
+            if (hasSmallerElements)
+                rangeList.Add (SerializationHelpers.Range (baseSheetName, type));
             return rangeList;
         }
 
-        public IEnumerable<string> GetSheetsList(string[] _sheets)
-        {
-            if (rangeList.Count == 0)
-                foreach (var sheet in GetRequestedSheets (_sheets))
-                    rangeList.Add (sheet);
-            return rangeList;
-        }
+        public IEnumerable<string> GetSheetsList(string[] _sheets) => GetRequestedSheets (_sheets);
 
         public void SetRequestedValues(ValueRange[] _values)
         {
@@ -110,7 +100,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             FlexibleArray<string> toStringArray (FieldMappingDetails? x)
             {
                 return x.HasValue ? 
-                       ToStringFlexibleArray (x.Value, _values) : 
+                       ToStringFlexibleArray (x.Value, _values) :                              
                        SheetGroupsExtensions.GetNextElement (ref i, z => smallerElements[z]);
             }
             return FlexibleArray<string>.Simplify (detailsArray.Bind (toStringArray));
@@ -128,35 +118,35 @@ namespace Mimimi.SpreadsheetsSerialization.Core
         // it might give any number of FlexibleArray<string>, which have to be connected in the right order
         private FlexibleArray<string> ToStringFlexibleArray(FieldMappingDetails _details, ValueRange[] _values)
         {
-            if (_details.dimensions > 0)
+            switch (_details.space)
             {
-                if (_details.space == SpaceRequired.Sheet)
-                {
-                    var pairs = _details.fittingSheets.Select(x => (GetSortingIndices (_details.parametrizedName, x, _details.dimensions), x)).ToArray();
-                    var sorted = SortByIndices (pairs, _details.dimensions);
-                    return FlexibleArray<string>.Simplify (sorted.Bind (x => SpreadsheetRangePath.ReadSheet (FindByName (_values, x).Values)));
-                }
-                if (_details.space == SpaceRequired.SheetsGroup)
-                {
-                    var pairs = _details.fittingGroups.Select (x => (GetSortingIndices (_details.parametrizedName, x.parametrizedName, _details.dimensions), x)).ToArray ();
-                    var sorted = SortByIndices (pairs, _details.dimensions);
-                    return FlexibleArray<string>.Simplify (sorted.Bind (x => x.AssembleValues(_values)));
-                }
+                case SpaceRequired.Sheet:
+                    if (_details.dimensions > 0)
+                    {
+                        var pairs = _details.fittingSheets.Select (x => (GetSortingIndices (_details.parametrizedName, x, _details.dimensions), x)).ToArray ();
+                        var sorted = SortByIndices (pairs, _details.dimensions);
+                        return FlexibleArray<string>.Simplify (sorted.Bind (x => SpreadsheetRangePath.ReadSheet (FindByName (_values, x).Values)));
+                    }
+                    else
+                    {
+                        UnityEngine.Debug.Assert (_details.fittingSheets.Count == 1);
+                        return SpreadsheetRangePath.ReadSheet (FindByName (_values, _details.fittingSheets[0]).Values);
+                    }
+                case SpaceRequired.SheetsGroup:
+                    if (_details.dimensions > 0)
+                    {
+                        var groups = _details.fittingGroups.Select (x => (GetSortingIndices (_details.parametrizedName, x.parametrizedName, _details.dimensions), x)).ToArray ();
+                        var sortedGroups = SortByIndices (groups, _details.dimensions);
+                        return FlexibleArray<string>.Simplify (sortedGroups.Bind (x => x.AssembleValues (_values)));
+                    }
+                    else
+                    {
+                        UnityEngine.Debug.Assert (_details.fittingGroups.Count == 1);
+                        return _details.fittingGroups[0].AssembleValues (_values);
+                    }
+                default:
+                    throw new Exception ("something is wrong here");
             }
-            else
-            {
-                if (_details.space == SpaceRequired.Sheet)
-                {
-                    UnityEngine.Debug.Assert (_details.fittingSheets.Count == 1);
-                    return SpreadsheetRangePath.ReadSheet (FindByName (_values, _details.fittingSheets[0]).Values);
-                }
-                if (_details.space == SpaceRequired.SheetsGroup)
-                {
-                    UnityEngine.Debug.Assert (_details.fittingGroups.Count == 1);
-                    return _details.fittingGroups[0].AssembleValues (_values);
-                }
-            }
-            throw new Exception ("something is wrong here");
         }
 
         // strange voices in the dark told me to create this...
@@ -230,7 +220,9 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 
 #region List of sheets
 
+        // NOT PURE
         // check if _sheets contain the name of every sheet required to build this SheetsGroup object
+        // meanwhile makes a list of required sheets for each field
         internal static bool HasRequiredSheets(SheetsGroupInfo _group, string[] _sheets)
         {
             foreach (var r in _group.RequiredFields)
@@ -284,8 +276,6 @@ namespace Mimimi.SpreadsheetsSerialization.Core
                     return;
             }
         }
-
-        private static Type GetFieldMappedType(FieldInfo _field) => _field.GetFieldDimensionsTypes ().Last ();
 
 #endregion
 

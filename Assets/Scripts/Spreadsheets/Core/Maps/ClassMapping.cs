@@ -52,19 +52,20 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 #endregion
 #region Unmappage
 
+        // Used by GetRequest
+        // Assembles an object of requested type from _values, and then passed it to user through callback 
         public static void InvokeGetCallback(Type _type, object _callback, FlexibleArray<string> _values)
         {
-            object value = GetObjectValue (_type, _values);
+            var genericCallbackParameters = new[] { _callback, GetObjectValue (_type, _values) };
             typeof (ClassMapping).GetMethod ("GenericCallbackInvoke", BindingFlags.Static | BindingFlags.NonPublic)
                                  .MakeGenericMethod (_type)
-                                 .Invoke (null, new[] { _callback, value });
+                                 .Invoke (null, genericCallbackParameters);
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage ("CodeQuality", "IDE0051:Remove unused private members", Justification = "Method is called via Reflection")]
         private static void GenericCallbackInvoke<T>(object _callback, object _value)
         {
-            var c = (Action<T>)_callback;
-            c.Invoke ((T)_value);
+            ((Action<T>)_callback).Invoke ((T)_value);
         }
 
         // NOTE:
@@ -72,7 +73,6 @@ namespace Mimimi.SpreadsheetsSerialization.Core
         // Objects of collection types are made separately, in  AssignCollectionValues  method.
         public static object GetObjectValue(Type _type, FlexibleArray<string> _values)
         {
-            // mappable types
             if (IsMappableType (_type))
             {
                 object result = Activator.CreateInstance (_type);
@@ -81,7 +81,6 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             }
             // SingleValue types - and that means 'every class without a mapped attribute'. 
             // Only few of them got custom deserialization. Just add it if you miss it.
-            // Also, there is no other way to treat structs. 
             else
                 return ValueSerializer.FromString (_values.FirstValue, _type);
         }
@@ -117,42 +116,29 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 
             if (_types[0].IsArray)
             {
-                MethodInfo arrayCreate = typeof (ClassMapping).GetMethod ("ValuesToArray", BindingFlags.NonPublic | BindingFlags.Static)
-                                                              .MakeGenericMethod (_types[1]);
-                var items = _values.Enumerate ()
-                                   .Select (value => nextStepTypes.Length > 1 ? 
-                                                     AssignCollectionValues (nextStepTypes, value) : 
-                                                     GetObjectValue (_types[1], value));
-                return arrayCreate.Invoke (null, new[] { items });
+                var items = _values.Enumerate ().Select (nextStepTypes.GetElement).ToArray();
+                var array = Array.CreateInstance (_types[1], items.Length);
+                for (int i = 0; i < items.Length; i++)
+                    array.SetValue (items[i], i);
+                return array;
             }
             else
             {
                 object collectionObject = Activator.CreateInstance (_types[0]);
-                MethodInfo genericAppendMethod = typeof (ClassMapping).GetMethod ("AppendToCollection", BindingFlags.NonPublic | BindingFlags.Static)
-                                                                      .MakeGenericMethod (_types[1]);
+                MethodInfo genericAddMethod = _types[0].GetMethod ("Add", BindingFlags.Public | BindingFlags.Instance)
+                                                       .MakeGenericMethod (_types[1]);
 
-                foreach (var value in _values.Enumerate ())
-                {
-                    object element = (nextStepTypes.Length > 1) ? AssignCollectionValues (nextStepTypes, value) : GetObjectValue (_types[1], value);
-                    genericAppendMethod.Invoke (null, new[] { collectionObject, element });
-                }
+                foreach (var e in _values.Enumerate ().Select (nextStepTypes.GetElement))
+                    genericAddMethod.Invoke (collectionObject, new[] { e });
                 return collectionObject;
             }
         }
 
-        [System.Diagnostics.CodeAnalysis.SuppressMessage ("CodeQuality", "IDE0051:Remove unused private members", Justification = "Method is called via Reflection")]
-        private static void AppendToCollection<T>(object _collectionObject, object _valueObject)
+        private static object GetElement(this Type[] _types, FlexibleArray<string> _value)
         {
-            if (_collectionObject is ICollection<T> collection && _valueObject is T value)
-                collection.Add (value);
-            else
-                throw new InvalidOperationException ();
-        }
-
-        [System.Diagnostics.CodeAnalysis.SuppressMessage ("CodeQuality", "IDE0051:Remove unused private members", Justification = "Method is called via Reflection")]
-        private static T[] ValuesToArray<T>(IEnumerable<object> _values)
-        {
-            return _values.Cast<T> ().ToArray ();
+            return _types.Length > 1 ?
+                   AssignCollectionValues (_types, _value) :
+                   GetObjectValue (_types[0], _value);
         }
 
 #endregion

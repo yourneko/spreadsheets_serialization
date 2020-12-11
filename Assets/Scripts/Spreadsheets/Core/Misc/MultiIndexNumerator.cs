@@ -2,7 +2,7 @@
 using System.Linq;
 using System.Collections.Generic;
 
-namespace Mimimi.Tools
+namespace Mimimi.SpreadsheetsSerialization.Core
 {
     public class MultiIndexNumerator<T>
     {
