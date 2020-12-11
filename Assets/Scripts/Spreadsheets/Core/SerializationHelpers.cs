@@ -14,24 +14,5 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 
         private static string Range(string _sheet, string _pivot) => $"'{_sheet}'!{_pivot}:{DEFAULT_RANGE_END}";
         public static string Range(string _sheet, Type _type) => Range (_sheet, ClassMapping.GetPivotPoint (_type).A1);
-
-        public static string LogFlexStringArray(FlexibleArray<string> _array)
-        {
-            return _array.IsValue ?
-                   $"'{_array.FirstValue}'" :
-                   $"({string.Join(" ", _array.Enumerate().Select(x => LogFlexStringArray(x)))})";
-        }
-
-        public static string LogFlexStringArray<T>(FlexibleArray<T> _array, Func<T, string> _tostring)
-        {
-            return _array.IsValue ?
-                   $"'{_tostring.Invoke(_array.FirstValue)}'" :
-                   $"({string.Join (" ", _array.Enumerate ().Select (x => LogFlexStringArray (x, _tostring)))})";
-        }
-
-        public static string LogFlexFields(Type _type)
-        {
-            return LogFlexStringArray (ClassMapping.GetClassFields (_type), x => x.FieldType.Name);
-        }
     }
 }

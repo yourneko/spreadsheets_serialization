@@ -25,6 +25,8 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 
         public string Name => $"Requested type '{type.Name}'";
 
+        private IEnumerable<FieldMappingDetails> RequiredFields => names.Select (x => x.Value).Where (x => x.dimensions == 0);
+        private IEnumerable<FieldMappingDetails> IndexedFields => names.Select (x => x.Value).Where (x => x.dimensions > 0);
 
         public SheetsGroupInfo(Type _type, string _parametrizedName = PARAM)
         {
@@ -228,9 +230,6 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 
 #region List of sheets
 
-        private IEnumerable<FieldMappingDetails> RequiredFields => names.Select (x => x.Value).Where (x => x.dimensions == 0);
-        private IEnumerable<FieldMappingDetails> IndexedFields => names.Select (x => x.Value).Where (x => x.dimensions > 0);
-
         // check if _sheets contain the name of every sheet required to build this SheetsGroup object
         internal static bool HasRequiredSheets(SheetsGroupInfo _group, string[] _sheets)
         {
@@ -286,9 +285,9 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             }
         }
 
-#endregion
-
         private static Type GetFieldMappedType(FieldInfo _field) => _field.GetFieldDimensionsTypes ().Last ();
+
+#endregion
 
         internal struct FieldMappingDetails
         {

@@ -21,9 +21,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
         public void SetResponse(List<ValueRange> _response)
         {
             foreach (var r in requests)
-            {
                 r.SetRequestedValues (_response.ToArray ());
-            }
             requests.Clear ();
             ranges.Clear ();
         }
@@ -57,14 +55,10 @@ namespace Mimimi.SpreadsheetsSerialization.Core
                         throw new Exception ("Can't request a type with no specified range");
                 }
             }
-            else
-                throw new Exception ("New requests cannot be included to enqueued batched request.");
-
+            else throw new Exception ("New requests cannot be included to enqueued batched request.");
             // the cancellation token for callbacks might be introduced. 
             // but personally I have never run in situation where it would happen to be any useful
         }
-
-        // type -> FlexibleArray<FieldInfo> -> FlexibleArray<string>
 
         public void Enqueue()
         {
@@ -82,8 +76,6 @@ namespace Mimimi.SpreadsheetsSerialization.Core
         }
 
         // I failed to find a way around this split. From one side, additional SpreadsheetRequest slows things down.
-        // From another side, I need a list of sheet to find out how many sheets does the array contain.
-        //
         private void CalculateRanges(params string[] _sheetsExist)
         {
             foreach (var r in requests)
@@ -109,7 +101,5 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             }
             SerializationService.Enqueue (this);
         }
-        //
-        // It's over.
     }
 }

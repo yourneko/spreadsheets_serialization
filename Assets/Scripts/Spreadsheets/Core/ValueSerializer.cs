@@ -13,7 +13,6 @@ namespace Mimimi.SpreadsheetsSerialization.Core
         const string FALSE_LITERAL = "FALSE";
         //const string NULL_LITERAL = "null"; ...interesting
 
-        private static bool Match(string a, string b) => StringComparer.Ordinal.Equals (a, b);
         private static bool MatchIgnoreCase(string a, string b) => StringComparer.OrdinalIgnoreCase.Equals (a, b);
 
         private static string SerializeGeneric(object _target, Type _type)

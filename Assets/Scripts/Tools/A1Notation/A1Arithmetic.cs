@@ -6,23 +6,7 @@ namespace Mimimi.Tools.A1Notation
 {
     public static class A1Arithmetic
     {
-#region Ranges
-                        
-        public static bool Intersects(this A1Range _range, A1Range _other) => Math.Max (_range.first.x, _other.first.x) <= Math.Min (_range.last.x, _other.last.x) &&
-                                                                              Math.Max (_range.first.y, _other.first.y) <= Math.Min (_range.last.y, _other.last.y);
 
-        /// <remarks> To be sure the ranges are actually intersecting, call method <code>A1Range.Intersects(A1Range)</code> </remarks>
-        public static A1Range Intersection(this A1Range _range, A1Range _other) => new A1Range (_range.first.Max (_other.first),
-                                                                                                _range.last.Max (_other.last));
-
-        public static A1Range TranslateTo(this A1Range _range, A1Point _newFirstPoint)
-        {
-            return new A1Range (_newFirstPoint,
-                                new A1Point (_range.last.x + (_newFirstPoint.x - _range.first.x),
-                                             _range.last.y + (_newFirstPoint.y - _range.first.y)));
-        }
-
-#endregion
 #region Points
 
         public static int X(this A1Point _point) => _point.x;
@@ -57,13 +41,11 @@ namespace Mimimi.Tools.A1Notation
             }
         }
 
-#endregion
-#region Lines
-
-        public static A1Point PointOnLine(this A1Line _line, int _position)
+        public static A1Range TranslateTo(this A1Range _range, A1Point _newFirstPoint)
         {
-            return new A1Point (_line.x ?? _position, 
-                                _line.y ?? _position);
+            return new A1Range (_newFirstPoint,
+                                new A1Point (_range.last.x + (_newFirstPoint.x - _range.first.x),
+                                             _range.last.y + (_newFirstPoint.y - _range.first.y)));
         }
 
         public static A1Point GetProjection(this A1Line _line, A1Point _point, int _offset = 0)

@@ -21,12 +21,6 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             return fields.Bind (obj.ObjectToMap);
         }
 
-        public static FlexibleArray<Map> ObjectToMapArray(object obj, Type type)
-        {
-            var fields = fieldsDictionary.ContainsKey (type) ? fieldsDictionary[type] : CreateFieldsArray (type);
-            return fields.Bind (obj.ObjectToMap);
-        }
-
         public static FlexibleArray<FieldInfo> GetClassFields(Type _type)
         {
             if (IsMappableType (_type))
@@ -97,10 +91,6 @@ namespace Mimimi.SpreadsheetsSerialization.Core
         {
             Type objectType = _target.GetType ();
             UnityEngine.Debug.Assert (IsMappableType (objectType));
-            UnityEngine.Debug.Log (objectType.Name);
-            UnityEngine.Debug.Log (SerializationHelpers.LogFlexStringArray (_values));
-
-            UnityEngine.Debug.Log (SerializationHelpers.LogFlexFields (objectType));
 
             var fieldValues = GetClassFields (objectType).Associate (_values).GetValues ();
             foreach (var (fieldInfo, values) in fieldValues)

@@ -27,12 +27,6 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             return _target.Expand (ExpandFunction<T, O>, _dimension);
         }
 
-        public static FlexibleArray<O> CollapseArray<T, O>(this FlexibleArray<T> _target)
-        {
-            UnityEngine.Debug.Assert (ClassMapping.IsExpandable (typeof (O), typeof (T))); // inverted order compared to Expand
-            return _target.Collapse (CollapseFunction<T, O>);
-        }
-
 #endregion
 #region Field to Mapped
 
@@ -64,27 +58,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             return ClassMapping.GetEnumeratedTypes (_fieldInfo.FieldType, GetDimensions (_fieldInfo).Length);
         }
 
-        public static bool IsBaseTypeMappable(this FieldInfo _fieldInfo)
-        {
-            return ClassMapping.IsMappableType (GetFieldDimensionsTypes (_fieldInfo).Last ());
-        }
-
         #endregion
-        #region Mapped -> Object
-
-        private static O CollapseFunction<T, O>(IEnumerable<T> _dimension) // trying to get rid of new() constraint
-        {
-            O result = (O)Activator.CreateInstance (typeof (O));
-            if (result is IEnumerable<T> ie)
-            {
-                ie.Concat (_dimension);
-                return result;
-            }
-            else
-                throw new InvalidCastException ();
-        }
-
-#endregion
 
         // it seems there is the same method in Linq. too tired to check
         public static IEnumerable<(A first, B second)> Parallel<A, B>(this IEnumerable<A> _target, IEnumerable<B> _other)
@@ -102,16 +76,6 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             return _array.IsValue ?
                    _condition.Invoke (_array.FirstValue) :
                    _array.Enumerate().Any (x => _condition.ExtendCondition (x));
-        }
-
-        public static string GetAxisString(this A1Direction _direction) 
-        {
-            switch (_direction)
-            {
-                case A1Direction.Column:   return "#Y";
-                case A1Direction.Row:      return "#X";
-                default:                    throw new Exception ();
-            }
         }
     }
 }

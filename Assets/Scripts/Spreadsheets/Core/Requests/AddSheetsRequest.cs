@@ -9,7 +9,6 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 
         private AddSheetsRequest () { }
 
-
         public override void Terminate()
         {
             callback.Invoke (false);

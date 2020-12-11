@@ -12,8 +12,6 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 
         public override List<ValueRange> ValueRanges { get; protected set; }
 
-#region Initialization
-
         /// <summary> Specify the spreadsheet to update. </summary>
         public CustomBatchUpdateRequest(string _spreadsheetID, bool _createMissingSheets = false)
         {
@@ -23,7 +21,6 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             createMissingSheets = _createMissingSheets;
         }
 
-#endregion
 #region Assembling
 
         /// <remarks> Please avoid passing in a collection as one piece. </remarks>

@@ -67,7 +67,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 #endregion
 #region custom requests -> api requests
 
-        private static SpreadsheetsResource.ValuesResource.BatchUpdateRequest AssembleUpdateRequest(CustomBatchUpdateRequest _rq, string[] _missingSheets = null)
+        private static SpreadsheetsResource.ValuesResource.BatchUpdateRequest AssembleUpdateRequest(CustomBatchUpdateRequest _rq)
         {
             var request = new BatchUpdateValuesRequest ()
             {
@@ -171,22 +171,6 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             current = queue.Any () ? queue.Peek () : null;
             if (current != null)
                 Execute ();
-        }
-
-#endregion
-#region Side functions
-
-        private static bool MatchParametrisedRange(string _parametrizedRange, string _existingSheetName)
-        {
-            var pieces =  _parametrizedRange.ToLowerInvariant().Split('!')[0].Trim('\'').Split ('#');
-            string tmp = _existingSheetName.ToLowerInvariant();
-            foreach (var p in pieces)
-            {
-                if (string.IsNullOrEmpty(tmp) || !tmp.StartsWith (p))
-                    return false;
-                tmp = new string (tmp.Skip (p.Length).SkipWhile (char.IsDigit).ToArray ());
-            }
-            return true;
         }
 
 #endregion
