@@ -71,11 +71,11 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             }
         }
 
-        public static bool ExtendCondition<T>(this Predicate<T> _condition, FlexibleArray<T> _array)
+        public static bool ApplyCondition<T>(this Predicate<T> _condition, FlexibleArray<T> _array)
         {
             return _array.IsValue ?
                    _condition.Invoke (_array.FirstValue) :
-                   _array.Enumerate().Any (x => _condition.ExtendCondition (x));
+                   _array.Enumerate().Any (x => _condition.ApplyCondition (x));
         }
     }
 }

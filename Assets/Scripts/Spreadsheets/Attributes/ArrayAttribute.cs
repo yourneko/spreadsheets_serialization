@@ -6,8 +6,6 @@ namespace Mimimi.SpreadsheetsSerialization
     [AttributeUsage (AttributeTargets.Field, AllowMultiple = true)]
     public class ArrayAttribute : Attribute
     {
-        public int limitElements = 0;
-
         public int Index { get; private set; }
 
         public A1Direction Direction { get; private set; }

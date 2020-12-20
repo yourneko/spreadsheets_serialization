@@ -12,16 +12,6 @@ namespace Mimimi.Tools.A1Notation
 
         public override string ToString() => $"{first.A1}:{last.A1}";
 
-        public A1Range(string _range)
-        {
-            A1Point[] coords = _range.Split (':')
-                                     .Select (x => new A1Point (x))
-                                     .ToArray ();
-            UnityEngine.Debug.Assert (coords.Length == 1 || coords.Length == 2);
-            first = coords[0];
-            last = coords.Length == 1 ? first : coords[1];
-        }
-
         public A1Range(A1Point a, A1Point b)
         {
             first = a.Min (b);

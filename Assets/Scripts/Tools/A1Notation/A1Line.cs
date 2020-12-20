@@ -5,6 +5,7 @@
         public readonly A1Direction direction;
         public readonly int? x;
         public readonly int? y;
+
         public int Index => x ?? y ?? 0;
 
         public A1Line(A1Direction _direction, int _index)

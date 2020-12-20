@@ -7,7 +7,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 {
     public class SpreadsheetRange
     {
-        private SpreadsheetRangePath path;
+        private readonly SpreadsheetRangePath path;
         private readonly List<List<string>> data;
         private string range;
 
@@ -15,7 +15,6 @@ namespace Mimimi.SpreadsheetsSerialization.Core
         {
             data = new List<List<string>> () { new List<string> () };
             path = new SpreadsheetRangePath ();
-            // adding a place for final path
             path.WriteTitle ();
         }
 
@@ -23,7 +22,6 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 
         public ValueRange GetValueRange()
         {
-            UnityEngine.Debug.Log ($"Created range {range}");
             return new ValueRange ()
             {
                 MajorDimension = "ROWS",
@@ -97,7 +95,6 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 
         private void WriteValue(string _value)
         {
-            //UnityEngine.Debug.Log ($">> [{path.NextPoint.x},{path.NextPoint.y}] > {_value}");
             for (int i = data.Count; i <= path.NextPoint.y; i++)
                 data.Add (new List<string> ());
             List<string> line = data[path.NextPoint.y];

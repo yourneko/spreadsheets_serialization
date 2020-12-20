@@ -1,10 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 
 namespace Mimimi.Tools.A1Notation
 {
-	public static class A1Notation
+    public static class A1Notation
 	{
         const int LETTERS_COUNT = 26;
         const int BIG_LETTER_INDEX = 999;

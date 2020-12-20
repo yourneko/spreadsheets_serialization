@@ -1,35 +1,35 @@
 ﻿using System;
-using System.Linq;
-using System.Reflection;
 using System.Collections.Generic;
+using System.Linq;
 using Google.Apis.Sheets.v4.Data;
 
 namespace Mimimi.SpreadsheetsSerialization.Core
 {
     public class CustomBatchGetRequest : CustomBatchRequest
     {
-        private bool locked;
         private readonly bool containsSheetArray;
 
         public override List<ValueRange> ValueRanges { get; protected set; }
-        private readonly List<IGetRequestInfo> requests;
+        private readonly Dictionary<FieldAssembler, object> requests;
         private readonly List<string> ranges;
 
         public IEnumerable<string> SheetRanges => ranges.Distinct ();
         public override string Description => $"BatchGet request. Contains {requests.Count} objects, {ranges.Count} sheets total";
 
-        public void SetResponse(List<ValueRange> _response)
+        public void SetResponse(ValueRange[] _response)
         {
             foreach (var r in requests)
-                r.SetRequestedValues (_response.ToArray ());
+                ClassMapping.InvokeGetCallback (r.Key.titleType, r.Value, r.Key.GetStringArray (_response));
+
             requests.Clear ();
             ranges.Clear ();
         }
 
         public CustomBatchGetRequest(string spreadsheetID, bool containsIndexedSheets)
         {
+            UnityEngine.Debug.Log ($"Creating GET request. Indexing = {containsIndexedSheets}");
             SpreadsheetID = spreadsheetID;
-            requests = new List<IGetRequestInfo> ();
+            requests = new Dictionary<FieldAssembler, object> ();
             ranges = new List<string> ();
             containsSheetArray = containsIndexedSheets;
         }
@@ -42,20 +42,9 @@ namespace Mimimi.SpreadsheetsSerialization.Core
         public void Add<T>(Action<T> _callback)
         {
             if (!locked)
-            {
-                switch (ClassMapping.GetTypeSpaceRequirement (typeof (T)))
-                {
-                    case SpaceRequired.Sheet:
-                        requests.Add (new SingleSheetInfo (typeof (T)) { callbackObject = _callback });
-                        break;
-                    case SpaceRequired.SheetsGroup:
-                        requests.Add (new SheetsGroupInfo (typeof (T)) { callbackObject = _callback }); 
-                        break;
-                    default:
-                        throw new Exception ("Can't request a type with no specified range");
-                }
-            }
-            else throw new Exception ("New requests cannot be included to enqueued batched request.");
+                requests.Add (new FieldAssembler (typeof (T)), _callback);
+            else
+                throw new Exception ("New requests cannot be included to enqueued batched request.");
             // the cancellation token for callbacks might be introduced. 
             // but personally I have never run in situation where it would happen to be any useful
         }
@@ -66,39 +55,26 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             if (containsSheetArray)
                 SpreadsheetRequest.Send (SpreadsheetID, OnSpreadsheetReceived);
             else
-                CalculateRangesNoArrays ();
+                StartQueue (null);
         }
 
         private void OnSpreadsheetReceived(Spreadsheet _spreadsheet)
         {
             string[] sheetsExist = _spreadsheet.Sheets.Select (x => x.Properties.Title).ToArray ();
-            CalculateRanges (sheetsExist);
+            StartQueue (sheetsExist);
         }
 
-        // I failed to find a way around this split. From one side, additional SpreadsheetRequest slows things down.
-        private void CalculateRanges(params string[] _sheetsExist)
+        private void StartQueue(string[] _existingSheetNames)
         {
             foreach (var r in requests)
             {
-                var list = r.GetSheetsList (_sheetsExist);
-                if (!list.Any ())
-                    throw new Exception ($"Request was cancelled. {r.Name} has no valid spreadsheets ranges");
-                foreach (var e in list)
+                var required = r.Key.GetSpreadsheetRanges (_existingSheetNames).GetValues()
+                                    .Select(x => x.Range)
+                                    .Distinct();
+                foreach (var e in required)
                     ranges.Add (e);
             }
-            SerializationService.Enqueue (this);
-        }
-
-        private void CalculateRangesNoArrays()
-        {
-            foreach (var r in requests)
-            {
-                var list = r.GetUnindexedSheetList ();
-                if (!list.Any ())
-                    throw new Exception ($"Request was cancelled. {r.Name} has no valid spreadsheets ranges");
-                foreach (var e in list)
-                    ranges.Add (e);
-            }
+            UnityEngine.Debug.Log (string.Join (Environment.NewLine, ranges));
             SerializationService.Enqueue (this);
         }
     }

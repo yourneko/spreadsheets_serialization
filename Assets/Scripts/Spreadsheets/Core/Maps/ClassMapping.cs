@@ -8,7 +8,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 {
     public static class ClassMapping
     {
-        public static readonly A1Point DefaultRangePivotPoint = new A1Point (SerializationHelpers.DEFAULT_RANGE_PIVOT);
+        public static readonly A1Point DefaultRangePivotPoint = new A1Point (SpreadsheetsHelpers.DEFAULT_RANGE_PIVOT);
 
         private static readonly Dictionary<Type, FlexibleArray<FieldInfo>> fieldsDictionary = new Dictionary<Type, FlexibleArray<FieldInfo>>();
 
@@ -17,7 +17,9 @@ namespace Mimimi.SpreadsheetsSerialization.Core
         /// <summary> Uses the scheme of type to create a FlexibleArray of Map containers. </summary>
         public static FlexibleArray<Map> ObjectToMapArray<T>(T obj)
         {
-            var fields = fieldsDictionary.ContainsKey (typeof (T)) ? fieldsDictionary[typeof (T)] : CreateFieldsArray (typeof(T));
+            var fields = fieldsDictionary.ContainsKey (typeof (T)) ? 
+                         fieldsDictionary[typeof (T)] : 
+                         CreateFieldsArray (typeof(T));
             return fields.Bind (obj.ObjectToMap);
         }
 
@@ -114,19 +116,19 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 
             Type[] nextStepTypes = _types.Skip (1).ToArray ();
 
+            // _values might be null when sheets contain 0 of those objects
             if (_types[0].IsArray)
-            {
-                var items = _values.Enumerate ().Select (nextStepTypes.GetElement).ToArray();
-                var array = Array.CreateInstance (_types[1], items.Length);
-                for (int i = 0; i < items.Length; i++)
-                    array.SetValue (items[i], i);
-                return array;
-            }
+                return _values.IsValue && _values.FirstValue is null ? // null check for arrays
+                        Array.CreateInstance (_types[0], 0) :
+                        CreateArray (nextStepTypes, _values);
             else
             {
                 object collectionObject = Activator.CreateInstance (_types[0]);
-                MethodInfo genericAddMethod = _types[0].GetMethod ("Add", BindingFlags.Public | BindingFlags.Instance)
-                                                       .MakeGenericMethod (_types[1]);
+                if (_values.IsValue && _values.FirstValue is null) // null check for non-array collections
+                    return collectionObject;
+                MethodInfo genericAddMethod = _types[0].GetGenericTypeDefinition()
+                                                       .MakeGenericType(_types[1])
+                                                       .GetMethod ("Add", BindingFlags.Public | BindingFlags.Instance);
 
                 foreach (var e in _values.Enumerate ().Select (nextStepTypes.GetElement))
                     genericAddMethod.Invoke (collectionObject, new[] { e });
@@ -134,30 +136,20 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             }
         }
 
+        private static object CreateArray(Type[] _types, FlexibleArray<string> _values)
+        {
+            var items = _values.Enumerate ().Select (_types.GetElement).ToArray ();
+            var array = Array.CreateInstance (_types[0], items.Length);
+            for (int i = 0; i < items.Length; i++)
+                array.SetValue (items[i], i);
+            return array;
+        }
+
         private static object GetElement(this Type[] _types, FlexibleArray<string> _value)
         {
             return _types.Length > 1 ?
                    AssignCollectionValues (_types, _value) :
                    GetObjectValue (_types[0], _value);
-        }
-
-#endregion
-#region Naming
-
-        public static string GetSheetName(Type _type)
-        {
-            switch (_type.GetCustomAttribute<MapSpaceAttribute> ())
-            {
-                case SheetsGroupAttribute sg:   return sg.DefaultSheetName;
-                case SheetAttribute s:          return s.SheetName;
-                default:       throw new Exception ();
-            }
-        }
-
-        public static string GetParametrizedSheetName(Type _type)
-        {
-            var att = _type.GetCustomAttribute<MapSpaceAttribute> ();
-            return (att != null && att is SheetsGroupAttribute sg) ? sg.DefaultSheetName : throw new Exception ();
         }
 
 #endregion
@@ -177,7 +169,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 
             return _type.GetTypeInfo ()
                         .GetInterfaces ()
-                        .FirstOrDefault (x => x.IsGenericType/* && x.IsAssignableFrom(typeof(System.Collections.IEnumerable))*/)
+                        .FirstOrDefault (x => x.IsGenericType)
                         .GetGenericArguments ()[0];
         }
 
@@ -189,9 +181,8 @@ namespace Mimimi.SpreadsheetsSerialization.Core
         }
 
         public static bool IsMappableType(Type _type) => _type.GetCustomAttributes<MapSpaceAttribute> ().Any ();
-        public static bool IsSingleValueType(Type _type) => !IsMappableType (_type);
 
-        public static SpaceRequired GetTypeSpaceRequirement(Type _type) => _type.GetCustomAttribute<MapSpaceAttribute> ()?.RequiredSpace ?? SpaceRequired.SingleValue;
+        public static SpaceRequired GetTypeSpaceRequirement(Type _type) => _type?.GetCustomAttribute<MapSpaceAttribute> ()?.RequiredSpace ?? SpaceRequired.SingleValue;
 
         public static A1Point GetPivotPoint(Type _type)
         {
@@ -199,6 +190,19 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             return attribute?.CustomRangeAnchor ?? DefaultRangePivotPoint;
         }
 
+        public static Type BaseFieldType(this FieldInfo _fieldInfo)
+        {
+            return _fieldInfo.GetFieldDimensionsTypes ().Last ();
+        }
+
 #endregion
+
+        public static FlexibleArray<FieldInfo> SmallElementsArray(Type _type)
+        {
+            UnityEngine.Debug.Assert (GetTypeSpaceRequirement (_type) == SpaceRequired.SheetsGroup);
+            return GetClassFields (_type).Filter (IsSmallElementField);
+        }
+
+        private static bool IsSmallElementField(FieldInfo _info) => GetTypeSpaceRequirement (_info.BaseFieldType ()) < SpaceRequired.Sheet;
     }
 }

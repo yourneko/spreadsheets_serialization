@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace Example
 {
-    [Serializable, SheetsGroup("Group")]
+    [Serializable, SheetsGroup("Group {0}")]
     public class SuperclassData
     {
         [Map (0, 1), Array (0, A1Direction.Column)]

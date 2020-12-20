@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 
@@ -57,7 +56,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
         {
             UnityEngine.Debug.Assert (_target != null, "Can't map null");
             Type containedType = ClassMapping.GetEnumeratedTypes (_target.GetType (), _dimensions.Length).Last();
-            MethodInfo method = ClassMapping.IsSingleValueType (containedType) ?
+            MethodInfo method = !ClassMapping.IsMappableType (containedType) ?
                                  createValueMethod :
                                  createRangeMethod;
             return (Map)method.MakeGenericMethod (_target.GetType ())

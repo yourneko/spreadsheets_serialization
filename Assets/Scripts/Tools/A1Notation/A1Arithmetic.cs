@@ -1,5 +1,5 @@
-﻿using System.Collections.Generic;
-using System;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace Mimimi.Tools.A1Notation
@@ -9,11 +9,6 @@ namespace Mimimi.Tools.A1Notation
 
 #region Points
 
-        public static int X(this A1Point _point) => _point.x;
-        public static int Y(this A1Point _point) => _point.y;
-        public static bool NotNegative(this A1Point _point) => _point.x >= 0 && _point.y >= 0;
-        public static A1Point Min(this IEnumerable<A1Point> _points) => new A1Point (_points.Min (X), _points.Min (Y));
-        public static A1Point Max(this IEnumerable<A1Point> _points) => new A1Point (_points.Max (X), _points.Max (Y));
         public static A1Point Max(this A1Point _point, A1Point _other) => new A1Point (Math.Max(_point.x, _other.x), 
                                                                                         Math.Max(_point.y, _other.y));
         public static A1Point Min(this A1Point _point, A1Point _other) => new A1Point (Math.Min (_point.x, _other.x),

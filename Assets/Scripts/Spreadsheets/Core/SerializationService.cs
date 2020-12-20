@@ -10,14 +10,14 @@ using UnityEngine;
 
 namespace Mimimi.SpreadsheetsSerialization.Core
 {
-    public static class SerializationService
+    internal static class SerializationService
     {
         private const string APP_NAME = "SheetsSerialization";
         private static string[] SpreadsheetsScopes => new[] { "https://spreadsheets.google.com/feeds", "https://docs.google.com/feeds" };
 
         private static SheetsService service;
         private static Queue<CustomRequest> queue;
-        private static FailHandler failHandler;
+        private static readonly FailHandler failHandler;
         private static CustomRequest current;
 
         public static bool Active => service != null;
@@ -129,7 +129,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             spreadsheetsRQ.Ranges = ranges;
             BatchGetValuesResponse result = await spreadsheetsRQ.ExecuteAsync (); // TODO: HANDLE ERRORS
 
-            _rq.SetResponse (result.ValueRanges.ToList());
+            _rq.SetResponse (result.ValueRanges.ToArray());
             RequestCompleted ();
         }
 

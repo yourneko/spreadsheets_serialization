@@ -72,12 +72,11 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 
         public static FlexibleArray<string> ReadSheet(IList<IList<object>> _sheet)
         {
-            string pathSequence = (string)_sheet[0][0];
             SpreadsheetRangePath path = new SpreadsheetRangePath ();
             Stack<List<FlexibleArray<string>>> stack = new Stack<List<FlexibleArray<string>>> ();
             stack.Push (new List<FlexibleArray<string>> ());
 
-            foreach (var a in ReadActionsSequence (pathSequence))
+            foreach (var a in ReadActionsSequence ((string)_sheet[0][0]))
             {
                 switch (a)
                 {

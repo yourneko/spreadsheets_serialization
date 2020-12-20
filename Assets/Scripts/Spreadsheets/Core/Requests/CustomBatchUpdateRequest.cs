@@ -9,6 +9,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
     {
         private readonly List<string> sheetsRequired;
         private readonly bool createMissingSheets;
+        private Action callback;
 
         public override List<ValueRange> ValueRanges { get; protected set; }
 
@@ -26,9 +27,8 @@ namespace Mimimi.SpreadsheetsSerialization.Core
         /// <remarks> Please avoid passing in a collection as one piece. </remarks>
         public void Add<T>(T obj)
         {
-            UnityEngine.Debug.Assert (ClassMapping.IsMappableType(typeof(T)), 
-                                      $"Type {typeof(T).Name} is not mappable. If you are trying to add a collection, please pass objects in one by one instead");
-            SortByMapSize (ClassMapping.ObjectToMapArray (obj), typeof (T), "{0}");
+            UnityEngine.Debug.Assert (ClassMapping.IsMappableType(typeof(T)), $"Type {typeof(T).Name} is not mappable. To write a collection type, pass objects in one by one.");
+            SortByMapSize (ClassMapping.GetClassFields (typeof(T)).Bind (obj.ObjectToMap), typeof (T), ClassNaming.PARAMETER_PLACE);
         }
 
         protected void EnumerateDimension(FlexibleArray<Map> _array, Type _type, int _dimensionCount, string _parametrizedName)
@@ -68,8 +68,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
         protected void CreateSheet(FlexibleArray<Map> _mapped, Type _type, string _parametrizedName) 
         {
             UnityEngine.Debug.Assert (ClassMapping.GetTypeSpaceRequirement (_type) >= SpaceRequired.Sheet);
-            string sheetBaseName = ClassMapping.GetSheetName (_type);
-            string name = string.Format (_parametrizedName, sheetBaseName);
+            string name = ClassNaming.AssembleSheetName(_type, _parametrizedName);
             var sheetRange = SpreadsheetRange.FromMap (_source:     _mapped, 
                                                        _sheet:      name, 
                                                        _rangePivot: ClassMapping.GetPivotPoint(_type));
@@ -84,9 +83,9 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 
             // If T contains Ranges or SingleValues, group it into the separate sheet. 
             if (_mapped.GetValues ().Any (x => x.SpaceRequirement <= SpaceRequired.Range))
-                CreateSheet (_mapped: _mapped.Filter (x => x.SpaceRequirement <= SpaceRequired.Range),
-                            _type: _type,
-                            _parametrizedName: _parametrizedName);
+                CreateSheet (_mapped:           _mapped.Filter (x => x.SpaceRequirement <= SpaceRequired.Range),
+                             _type:             _type,
+                             _parametrizedName: ClassNaming.AssembleSheetName(_type, ClassNaming.AssembleGroupName(_type, _parametrizedName)));
 
             // Ignoring Maps of Ranges and SingleValues, which are batched before. So, every remaining Map has to be a MapRange. Expand all maps and sort them again.
             foreach (var map in _mapped.GetValues ().Where (x => x.SpaceRequirement >= SpaceRequired.Sheet))
@@ -96,7 +95,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
                     EnumerateDimension (_array: mr.ExpandRange (),
                                         _type: map.ContainedType,
                                         _dimensionCount: mr.Types.Length - 1,
-                                        _parametrizedName: string.Format (_parametrizedName, ClassMapping.GetParametrizedSheetName (_type)));
+                                        _parametrizedName: ClassNaming.AssembleGroupName(_type, _parametrizedName));
                 }
                 else throw new Exception ();
             }

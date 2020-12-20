@@ -1,17 +1,14 @@
 ﻿using System;
-using System.Reflection;
-using System.Collections.Generic;
+using Mimimi.SpreadsheetsSerialization.Core;
 using UnityEngine;
-using Mimimi.SpreadsheetsSerialization;
 
-namespace Mimimi.SpreadsheetsSerialization.Core
+namespace Mimimi.SpreadsheetsSerialization
 {
     public static class ValueSerializer
     {
         const string NOT_IMPLEMENTED = "Values of Type '{0}' not supported";
-        const string TRUE_LITERAL = "TRUE"; 
+        const string TRUE_LITERAL = "TRUE";
         const string FALSE_LITERAL = "FALSE";
-        //const string NULL_LITERAL = "null"; ...interesting
 
         private static bool MatchIgnoreCase(string a, string b) => StringComparer.OrdinalIgnoreCase.Equals (a, b);
 
@@ -33,7 +30,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 
         public static string AsString<T>(this T _value)
         {
-            Debug.Assert (ClassMapping.IsSingleValueType(typeof(T)), $"Type '{typeof (T).Name}' is not a SingleValue type!");
+            Debug.Assert (!ClassMapping.IsMappableType (typeof (T)), $"Type '{typeof (T).Name}' is not a SingleValue type!");
 
             if (typeof (T).IsGenericType)
                 return SerializeGeneric (_value, typeof (T));
@@ -53,7 +50,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 
         public static object FromString(string _value, Type _type)
         {
-            UnityEngine.Debug.Assert (ClassMapping.IsSingleValueType (_type));
+            Debug.Assert (!ClassMapping.IsMappableType (_type));
 
             // Switch requires constant values
             // It's possible to compare type names (strings), but i don't like this idea
@@ -62,9 +59,9 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             else if (_type.Equals (typeof (string)))
                 return _value;
             else if (_type.Equals (typeof (bool)))
-                return MatchIgnoreCase (_value, FALSE_LITERAL) ? (object)false : 
-                       MatchIgnoreCase (_value, TRUE_LITERAL) ? (object)true : 
-                       throw new NotImplementedException (string.Format(NOT_IMPLEMENTED, _type.Name));
+                return MatchIgnoreCase (_value, FALSE_LITERAL) ? false :
+                       MatchIgnoreCase (_value, TRUE_LITERAL) ? (object)true :
+                       throw new NotImplementedException (string.Format (NOT_IMPLEMENTED, _type.Name));
             else
                 throw new NotImplementedException (string.Format (NOT_IMPLEMENTED, _type.Name));
         }
