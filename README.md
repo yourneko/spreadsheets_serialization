@@ -1,9 +1,9 @@
-**Spreadsheets Serialization** allows you to map your data to Google Spreadsheets. Made for both study & fun.
-* Serialization and deserialization of any user-made class. No limitations on class nesting;
-* Mark-up uses a small number of attributes, no code required. The mark-up is valid for any context;
-* Deal with _ICollection<>_ types and non-generic array types using an _ArrayAttribute_;
-* The result is configurable and human-readable;
-* Ranges for reading & writing are automatically calculated from the context;
+**Spreadsheets Serialization** is a tool for easy reading & writing data from Google Spreadsheets. Made for practice & fun purposes.
+* Layout mark-up is based on simple set of Attributes. The mark-up of a class is valid in any context;
+* Recursive serialization algorithm deals with any depth of class hierarchy;
+* Implicit range selection for reading & writing;
+* Generic _ICollection<>_ types and non-generic array types supported. Use _ArrayAttribute_ on fields of those types;
+* The result is configurable and human-readable. Values can be edited in web interface;
 
 How to write:
 * Add **using Mimimi.SpreadsheetsSerialization**
