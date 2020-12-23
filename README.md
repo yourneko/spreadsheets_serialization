@@ -5,6 +5,18 @@
 * The result is configurable and human-readable;
 * Ranges for reading & writing are automatically calculated from the context;
 
+How to write:
+* Add **using Mimimi.SpreadsheetsSerialization**
+* Create a new request with **var request = new CustomBatchUpdateRequest (string spreadsheetID)**
+* Add instances of your marked up classes with **request.Add\<T\> (T instance)**
+* Execute the request with **request.Enqueue ()** - with optional _Action_ callback
+
+How to read:
+* Add **using Mimimi.SpreadsheetsSerialization**
+* Create a new request with **var request = new CustomBatchGetRequest (string spreadsheetID)**
+* Specify a requested data with **request.Add \<T\> (Action\<T\> callback)** - callback returns a value to caller
+* Execute the request with **request.Enqueue ()**
+
 Mark up classes in 2 steps:
 
 First, add a **MapAttribute** to every Field of the class you want to serialize. **MapAttribute** has a required _index_ parameter (bigger = to the right) and an optional _group_ paremeter (bigger = downward, default is 0).
