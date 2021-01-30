@@ -1,4 +1,7 @@
-﻿using Mimimi.SpreadsheetsSerialization.Core;
+﻿using System;
+using System.Threading.Tasks;
+using Google.Apis.Auth.OAuth2;
+using Google.Apis.Services;
 using UnityEngine;
 
 namespace Example
@@ -7,42 +10,56 @@ namespace Example
     {
         [SerializeField] ExampleTargetComponent target;
         [SerializeField] string testSpreadsheetID;
-        [SerializeField] ExampleData data;
-        [SerializeField] SuperclassData someSheetsData;
+        [SerializeField] ExampleData data = new ExampleData ();
+        [SerializeField] SuperclassData someSheetsData = new SuperclassData ();
+        [SerializeField] SimpleData simple;
 
         [SerializeField] TextAsset key;
 
-        private void Start()
+        SheetsIO.SheetsIO service;
+
+        void Start()
         {
-            SerializationService.StartService (key.text);
+            var httpInit = GoogleCredential.FromJson (key.text).CreateScoped ("https://spreadsheets.google.com/feeds", "https://docs.google.com/feeds");
+            service = new SheetsIO.SheetsIO (new BaseClientService.Initializer
+                                             {
+                                                 HttpClientInitializer = httpInit,
+                                                 ApplicationName       = "SheetsSerialization",
+                                                 GZipEnabled           = Application.isEditor || Application.platform != RuntimePlatform.Android
+                                             });
         }
 
-        public void WriteData() => Write (data, false);
-        public void WriteSheets() => Write (someSheetsData, true);
+        public void WriteData() => InvokeSafe (Write (data));
+        public void WriteSheets() => InvokeSafe (Write (someSheetsData));
 
-        public void ReadData() => Read ((ExampleData x) => target.data = x, false);
-        public void ReadSheets() => Read ((SuperclassData x) => target.someSheetsData = x, true);
+        public void ReadData() => InvokeSafe (Read<ExampleData> (x => target.data = x));
+        public void ReadSheets() => InvokeSafe (Read<SuperclassData> (x => target.someSheetsData = x));
+        public void ReadSimple() => InvokeSafe (Read<SimpleData> (s => simple = s));
+        public void ReadSimpleFail() => InvokeSafe (Read<SimpleData> (s => simple = s, "FailOn"));
 
-        private void Write<T>(T obj, bool _createMissingRanges)
+        static async void InvokeSafe(Task task)
         {
-            if (ClassMapping.IsMappableType (typeof (T)))
+            try
             {
-                CustomBatchUpdateRequest request = new CustomBatchUpdateRequest (testSpreadsheetID, _createMissingRanges);
-                request.Add (obj);
-                request.Enqueue (null);
+                await task;
             }
-            else Debug.LogError ($"Writing cancelled. Type {typeof (T).Name} is not mappable.");
+            catch (Exception e)
+            {
+                Debug.LogError(e);
+            }
         }
 
-        private void Read<T>(System.Action<T> _writeResults, bool indexed)
+        async Task Write<T>(T obj)
         {
-            if (ClassMapping.IsMappableType (typeof (T)))
-            {
-                CustomBatchGetRequest rq = new CustomBatchGetRequest (testSpreadsheetID, indexed);
-                rq.Add (_writeResults);
-                rq.Enqueue ();
-            }
-            else Debug.LogError ($"Writing cancelled. Type {typeof (T).Name} is not mappable.");
+            var result = await service.WriteAsync (obj, testSpreadsheetID);
+            print (result ? "Sheets were successfully updated." : "Write task failed");
+        }
+
+        async Task Read<T>(Action<T> callback, string sheet = null)
+        {
+            var result = await service.ReadAsync<T> (testSpreadsheetID, sheet ?? string.Empty);
+            print (result is null ? "Failed." : "The requested object was successfully created.");
+            callback.Invoke (result);
         }
     }
 }
