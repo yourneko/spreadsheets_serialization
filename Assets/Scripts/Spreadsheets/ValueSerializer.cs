@@ -4,6 +4,7 @@ using UnityEngine;
 
 namespace Mimimi.SpreadsheetsSerialization
 {
+    // TODO allow users to create & register new serializers / deserializers
     public static class ValueSerializer
     {
         const string NOT_IMPLEMENTED = "Values of Type '{0}' not supported";
@@ -67,5 +68,5 @@ namespace Mimimi.SpreadsheetsSerialization
         }
 
     }
-
+    
 }

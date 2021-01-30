@@ -3,7 +3,7 @@ using System.Reflection;
 
 namespace Mimimi.SpreadsheetsSerialization.Core
 {
-    public class MapRange : Map
+    class MapRange : Map
     {
         // Called via Reflection
         public static MapRange Create<T>(T _value, DimensionInfo[] _genericParameterDimensions)

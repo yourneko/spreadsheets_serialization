@@ -10,52 +10,55 @@ using UnityEngine;
 
 namespace Mimimi.SpreadsheetsSerialization.Core
 {
-    internal static class SerializationService
+    public class SerializationService
     {
         private const string APP_NAME = "SheetsSerialization";
-        private static string[] SpreadsheetsScopes => new[] { "https://spreadsheets.google.com/feeds", "https://docs.google.com/feeds" };
+        private static readonly string[] SpreadsheetsScopes = new[] { "https://spreadsheets.google.com/feeds", "https://docs.google.com/feeds" };
 
-        private static SheetsService service;
-        private static Queue<CustomRequest> queue;
-        private static readonly FailHandler failHandler;
-        private static CustomRequest current;
+        private SheetsService m_googleApiService;
+        private Queue<CustomRequest> queue;
+        private FailHandler failHandler;
+        private CustomRequest current;
 
-        public static bool Active => service != null;
-        public static bool Running => current != null;
+        public bool Active => m_googleApiService != null;
+        public bool Running => current != null;
 
-        static SerializationService()
+#region Start / Stop the instance
+
+        public static SerializationService StartService(string _jsonKeys)
+        {
+            Debug.Assert (!string.IsNullOrEmpty (_jsonKeys));
+            
+            var initializer = new BaseClientService.Initializer ()
+            {
+                HttpClientInitializer = GoogleCredential.FromJson (_jsonKeys)
+                                                        .CreateScoped (SpreadsheetsScopes),
+                ApplicationName = APP_NAME,
+                // System.IO.Compression не робит на Android, ну или Unity компилятор хочет юморить
+                GZipEnabled = Application.isEditor ||           
+                              Application.platform != RuntimePlatform.Android,
+            };
+            
+            return new SerializationService ()
+                   {
+                       m_googleApiService = new SheetsService (initializer),
+                       queue = new Queue<CustomRequest> (),
+                   };
+        }
+
+        private SerializationService()
         {
             failHandler = new FailHandler ();
             failHandler.OnFailHandled += OnRequestFailed;
             ServicePointManager.ServerCertificateValidationCallback = AlwaysTrueValidator.ReturnTrue;
         }
 
-#region Start / Stop the instance
-
-        public static void StartService(string _jsonKeys)
+        public void StopService()
         {
-            Debug.Assert (!string.IsNullOrEmpty (_jsonKeys));
-            Debug.Assert (service == null);
+            UnityEngine.Debug.Assert (m_googleApiService != null);
 
-            var initializer = new BaseClientService.Initializer ()
-            {
-                HttpClientInitializer = GoogleCredential.FromJson (_jsonKeys)
-                                                        .CreateScoped (SpreadsheetsScopes),
-                ApplicationName = APP_NAME,
-                GZipEnabled = Application.isEditor ||           // System.IO.Compression не робит на Android, ну или Unity компилятор хочет юморить
-                              Application.platform != RuntimePlatform.Android,
-            };
-            service = new SheetsService (initializer);
-            queue = new Queue<CustomRequest> ();
-            UnityEngine.Debug.Log ("Serialization service started.");
-        }
-
-        public static void StopCurrentService()
-        {
-            UnityEngine.Debug.Assert (service != null);
-
-            service.Dispose ();
-            service = null;
+            m_googleApiService.Dispose ();
+            m_googleApiService = null;
 
             current = null;
             while (queue.Count > 0)
@@ -64,22 +67,32 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             UnityEngine.Debug.Log ("Serialization service stopped.");
         }
 
+        public CustomBatchGetRequest BatchGet(string spreadsheetID)
+        {
+            return new CustomBatchGetRequest (spreadsheetID, true) { Service = this };
+        }
+
+        public CustomBatchUpdateRequest BatchUpdate(string spreadsheetID)
+        {
+            return new CustomBatchUpdateRequest (spreadsheetID) { Service = this };
+        }
+
 #endregion
 #region custom requests -> api requests
 
-        private static SpreadsheetsResource.ValuesResource.BatchUpdateRequest AssembleUpdateRequest(CustomBatchUpdateRequest _rq)
+        private SpreadsheetsResource.ValuesResource.BatchUpdateRequest AssembleUpdateRequest(CustomBatchUpdateRequest _rq)
         {
             var request = new BatchUpdateValuesRequest ()
             {
                 Data = _rq.ValueRanges,
                 ValueInputOption = "USER_ENTERED",
             };
-            return service.Spreadsheets.Values.BatchUpdate (request, _rq.SpreadsheetID);
+            return m_googleApiService.Spreadsheets.Values.BatchUpdate (request, _rq.SpreadsheetID);
         }
 
-        private static void Execute()
+        private void Execute()
         {
-            UnityEngine.Debug.Log ($"Executing {current.Description}");
+            Debug.Log ($"Executing {current.Description}");
             switch (current)
             {
                 case CustomBatchGetRequest getrq:
@@ -88,7 +101,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
                 case CustomBatchUpdateRequest updrq:
                     ExecuteUpdateAsync (updrq);
                     return;
-                case SpreadsheetRequest spreadsheetRequest:
+                case SpreadsheetsDataRequest spreadsheetRequest:
                     ExecuteSpreadsheetGetAsync (spreadsheetRequest);
                     return;
                 case AddSheetsRequest addSheetsRequest:
@@ -99,14 +112,14 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             }
         }
 
-        private static async void ExecuteSpreadsheetGetAsync(SpreadsheetRequest _request)
+        private async void ExecuteSpreadsheetGetAsync(SpreadsheetsDataRequest _request)
         {
-            var result = await service.Spreadsheets.Get (_request.SpreadsheetID).ExecuteAsync ();
+            var result = await m_googleApiService.Spreadsheets.Get (_request.SpreadsheetID).ExecuteAsync ();
             _request.SetResponse(result);
             RequestCompleted ();
         }
 
-        private static async void ExecuteAddSheetsAsync(AddSheetsRequest _request)
+        private async void ExecuteAddSheetsAsync(AddSheetsRequest _request)
         {
             BatchUpdateSpreadsheetRequest body = new BatchUpdateSpreadsheetRequest () { Requests = new List<Request> (), };
             foreach (var s in _request.sheetNames.Select (x => new SheetProperties () { Title = x, }))
@@ -116,16 +129,16 @@ namespace Mimimi.SpreadsheetsSerialization.Core
                     AddSheet = new AddSheetRequest () { Properties = s, }
                 });
             }
-            var response = await service.Spreadsheets.BatchUpdate (body, _request.SpreadsheetID).ExecuteAsync();
+            var response = await m_googleApiService.Spreadsheets.BatchUpdate (body, _request.SpreadsheetID).ExecuteAsync();
             _request.SetResponse (true);
             RequestCompleted ();
         }
 
-        private async static void ExecuteGet(CustomBatchGetRequest _rq)
+        private async void ExecuteGet(CustomBatchGetRequest _rq)
         {
             var ranges = _rq.SheetRanges.ToList ();
             // creating and sending a spreadsheet request
-            var spreadsheetsRQ = service.Spreadsheets.Values.BatchGet (_rq.SpreadsheetID);
+            var spreadsheetsRQ = m_googleApiService.Spreadsheets.Values.BatchGet (_rq.SpreadsheetID);
             spreadsheetsRQ.Ranges = ranges;
             BatchGetValuesResponse result = await spreadsheetsRQ.ExecuteAsync (); // TODO: HANDLE ERRORS
 
@@ -133,7 +146,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             RequestCompleted ();
         }
 
-        private async static void ExecuteUpdateAsync(CustomBatchUpdateRequest _rq) 
+        private async void ExecuteUpdateAsync(CustomBatchUpdateRequest _rq) 
         {
             var spreadsheetsRQ = AssembleUpdateRequest (_rq);
             var response = await spreadsheetsRQ.ExecuteAsync (); // TODO: HANDLE ERRORS
@@ -141,7 +154,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             RequestCompleted ();
         }
 
-        private static void OnRequestFailed()
+        private void OnRequestFailed()
         {
             current.Terminate ();
             RequestCompleted ();
@@ -150,7 +163,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 #endregion
 #region Queue
 
-        public static void Enqueue(CustomRequest _request)
+        internal void Enqueue(CustomRequest _request)
         {
             UnityEngine.Debug.Assert (Active);
             queue.Enqueue (_request);
@@ -158,14 +171,14 @@ namespace Mimimi.SpreadsheetsSerialization.Core
                 Run ();
         }
 
-        private static void Run() // По одному за раз! Мы стоим - и ты стой. Тебе шо, больше всех надо? Ишь какой!
+        private void Run() // По одному за раз! Мы стоим - и ты стой. Тебе шо, больше всех надо? Ишь какой!
         {
             Debug.Assert (!Running);
             current = queue.Peek ();
             Execute ();
         }
 
-        private static void RequestCompleted()
+        private void RequestCompleted()
         {
             queue.Dequeue ();
             current = queue.Any () ? queue.Peek () : null;

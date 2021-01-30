@@ -1,6 +1,6 @@
 ﻿namespace Mimimi.SpreadsheetsSerialization.Core
 {
-    public enum PathAction
+    enum PathAction
     {
         OpenX = '(',
         CloseX = ')',

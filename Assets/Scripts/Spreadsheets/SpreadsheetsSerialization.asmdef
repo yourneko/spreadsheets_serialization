@@ -1,0 +1,24 @@
+{
+    "name": "SpreadsheetsSerialization",
+    "references": [
+        "GUID:6012563347ec47589db15566d6690fa3"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [
+        "BJM",
+        "Lumin",
+        "macOSStandalone",
+        "PS4",
+        "Switch",
+        "tvOS",
+        "WSA",
+        "WebGL",
+        "XboxOne"
+    ],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": []
+}

@@ -4,7 +4,7 @@ using Google.Apis.Sheets.v4.Data;
 
 namespace Mimimi.SpreadsheetsSerialization.Core
 {
-    internal class SheetPartitionInfo : IDataPlacementInfo
+    class SheetPartitionInfo : IDataPlacementInfo
     {
         private readonly SheetInfo sheet;
         private readonly Type type;
@@ -25,11 +25,12 @@ namespace Mimimi.SpreadsheetsSerialization.Core
         public FlexibleArray<string> SelectRead(ValueRange[] _ranges)
         {
             if (results is null)
-                results = ClassMapping.SmallElementsArray (type)
-                                       .Associate (sheet.SelectRead (_ranges))
-                                       .Bind (x => x.Item2)
-                                       .GetValues ()
-                                       .ToArray ();
+                results = ClassMapping.GetClassFields (type)
+                                      .Filter (x => ClassMapping.GetTypeSpaceRequirement (x.BaseFieldType ()) < SpaceRequired.Sheet)
+                                      .Associate (sheet.SelectRead (_ranges))
+                                      .Bind (x => x.Item2)
+                                      .GetValues ()
+                                      .ToArray ();
             return results[index++ % results.Length];
         }
     }

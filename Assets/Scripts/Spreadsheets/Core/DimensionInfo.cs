@@ -2,7 +2,7 @@
 
 namespace Mimimi.SpreadsheetsSerialization.Core
 {
-    public struct DimensionInfo
+    struct DimensionInfo
     {
         public static DimensionInfo placeholder = new DimensionInfo (A1Direction.Undefined);
 

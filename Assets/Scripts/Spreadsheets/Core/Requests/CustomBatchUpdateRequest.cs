@@ -8,30 +8,34 @@ namespace Mimimi.SpreadsheetsSerialization.Core
     public class CustomBatchUpdateRequest : CustomBatchRequest
     {
         private readonly List<string> sheetsRequired;
-        private readonly bool createMissingSheets;
         private Action callback;
+        
+        public bool CreateMissingSheets;
 
-        public override List<ValueRange> ValueRanges { get; protected set; }
+        internal List<ValueRange> ValueRanges { get; private set; }
 
         /// <summary> Specify the spreadsheet to update. </summary>
-        public CustomBatchUpdateRequest(string _spreadsheetID, bool _createMissingSheets = false)
+        internal CustomBatchUpdateRequest(string _spreadsheetID)
         {
             SpreadsheetID = _spreadsheetID;
             ValueRanges = new List<ValueRange> ();
             sheetsRequired = new List<string> ();
-            createMissingSheets = _createMissingSheets;
         }
 
 #region Assembling
 
         /// <remarks> Please avoid passing in a collection as one piece. </remarks>
-        public void Add<T>(T obj)
+        public void Parse<T>(ref T obj)
         {
-            UnityEngine.Debug.Assert (ClassMapping.IsMappableType(typeof(T)), $"Type {typeof(T).Name} is not mappable. To write a collection type, pass objects in one by one.");
-            SortByMapSize (ClassMapping.GetClassFields (typeof(T)).Bind (obj.ObjectToMap), typeof (T), ClassNaming.PARAMETER_PLACE);
+            
+            UnityEngine.Debug.Assert (ClassMapping.IsMappableType(typeof(T)), 
+                                      $"Type {typeof(T).Name} is not mappable. To write a collection type, pass objects in one by one.");
+            SortByMapSize (ClassMapping.GetClassFields (typeof(T)).Bind (obj.ObjectToMap), 
+                           typeof (T), 
+                           ClassNaming.PARAMETER_PLACE);
         }
 
-        protected void EnumerateDimension(FlexibleArray<Map> _array, Type _type, int _dimensionCount, string _parametrizedName)
+        private void EnumerateDimension(FlexibleArray<Map> _array, Type _type, int _dimensionCount, string _parametrizedName)
         {
             if (_dimensionCount == 0)
                 SortByMapSize (_array, _type, _parametrizedName);
@@ -48,7 +52,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
         }
 
         // this method separates SheetsRanges from Sheets. Do not pass smaller maps in it
-        protected void SortByMapSize(FlexibleArray<Map> _array, Type _type, string _parametrizedName)
+        private void SortByMapSize(FlexibleArray<Map> _array, Type _type, string _parametrizedName)
         {
             switch (ClassMapping.GetTypeSpaceRequirement (_type))
             {
@@ -65,19 +69,19 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 
         // TypeSpace == Sheet in case of separate sheet
         // TypeSpace == SheetsGroup if array was assembled from smaller parts of SheetsGroup
-        protected void CreateSheet(FlexibleArray<Map> _mapped, Type _type, string _parametrizedName) 
+        private void CreateSheet(FlexibleArray<Map> _mapped, Type _type, string _parametrizedName) 
         {
             UnityEngine.Debug.Assert (ClassMapping.GetTypeSpaceRequirement (_type) >= SpaceRequired.Sheet);
             string name = ClassNaming.AssembleSheetName(_type, _parametrizedName);
-            var sheetRange = SpreadsheetRange.FromMap (_source:     _mapped, 
-                                                       _sheet:      name, 
-                                                       _rangePivot: ClassMapping.GetPivotPoint(_type));
+            var sheetRange = SpreadsheetRange.FromMap (_source: _mapped,
+                                                       _sheet: name,
+                                                       _rangePivot: ClassMapping.GetPivotPoint (_type));
             UnityEngine.Debug.Assert (sheetRange != null);
             sheetsRequired.Add (name);
             ValueRanges.Add (sheetRange.GetValueRange ());
         }
 
-        protected void ProcessSheetsRange(FlexibleArray<Map> _mapped, Type _type, string _parametrizedName)
+        private void ProcessSheetsRange(FlexibleArray<Map> _mapped, Type _type, string _parametrizedName)
         {
             UnityEngine.Debug.Assert (ClassMapping.GetTypeSpaceRequirement (_type) == SpaceRequired.SheetsGroup);
 
@@ -105,15 +109,14 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 #region Queue
 
         /// <summary> Pass null to get no callback. </summary>
-        public void Enqueue(Action _callback)
+        public override void Enqueue()
         {
-            callback = _callback;
             UnityEngine.Debug.Log ($"Update request queued. Sheets included: {ValueRanges.Count}");
 
-            if (createMissingSheets)
-                SpreadsheetRequest.Send (SpreadsheetID, MakeRequestAddMissingSheets);
-            else
-                Enqueue ();
+            if (CreateMissingSheets)
+                EnqueueRequest (SpreadsheetsDataRequest.Create (SpreadsheetID, MakeRequestAddMissingSheets));
+
+            base.Enqueue ();
         }
 
         private void MakeRequestAddMissingSheets(Spreadsheet _spreadsheet)
@@ -129,9 +132,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
                                                   .Except (currentSheets)
                                                   .ToArray ();
                 if (missingSheets.Any ())
-                    AddSheetsRequest.Send (SpreadsheetID, OnSheetsAdd, missingSheets);
-                else
-                    Enqueue ();
+                    EnqueueRequest (new AddSheetsRequest (SpreadsheetID, OnSheetsAdd, missingSheets));
             }
         }
 
@@ -143,9 +144,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
                 UnityEngine.Debug.Log ($"Request cancelled. Can't add missing sheets to {SpreadsheetID}");
         }
 
-        private void Enqueue() => SerializationService.Enqueue (this);
-
-        public void SetResponse(int _cellsUpdated)
+        internal void SetResponse(int _cellsUpdated)
         {
             callback?.Invoke ();
             ValueRanges.Clear ();

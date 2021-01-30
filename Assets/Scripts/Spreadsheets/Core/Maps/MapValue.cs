@@ -5,7 +5,7 @@ using System.Reflection;
 namespace Mimimi.SpreadsheetsSerialization.Core
 {
     // wrapping common structs
-    public class MapValue : Map
+    class MapValue : Map
     {
         /// <param name="_genericParameterDimensions"> Replaces <typeparamref name="ContainedType"/> with a generic parameter of <typeparamref name="IEnumerable"/>,
         ///                                            instead of type <typeparamref name="T"/>. </param>

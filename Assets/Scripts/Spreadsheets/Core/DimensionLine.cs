@@ -2,7 +2,7 @@
 
 namespace Mimimi.SpreadsheetsSerialization.Core
 {
-    public class DimensionLine
+    class DimensionLine
     {
         // the line where every element of this dimension lays on
         public readonly A1Line line;

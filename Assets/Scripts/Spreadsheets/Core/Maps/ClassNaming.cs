@@ -4,7 +4,7 @@ using System.Reflection;
 
 namespace Mimimi.SpreadsheetsSerialization.Core
 {
-    public static class ClassNaming
+    static class ClassNaming
     {
         public const string PARAMETER_PLACE = "{0}";
         public const string DEFAULT_MAIN_SHEET_NAME = "Main";

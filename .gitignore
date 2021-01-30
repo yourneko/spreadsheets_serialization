@@ -6,6 +6,7 @@ Packages
 Incomplete
 .DS_Store
 .vs
+.idea
 /BuildReports
 *.userprefs
 *.pidb

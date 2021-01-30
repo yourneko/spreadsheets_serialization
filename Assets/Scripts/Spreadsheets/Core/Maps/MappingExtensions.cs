@@ -6,7 +6,7 @@ using Mimimi.Tools.A1Notation;
 
 namespace Mimimi.SpreadsheetsSerialization.Core
 {
-    public static class MappingExtensions
+    static class MappingExtensions
     {
 #region Conversions over FlexArrays
 
@@ -45,7 +45,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             return Map.Create (_fieldInfo.GetValue (_parentObject), GetDimensions(_fieldInfo));
         }
 
-        public static DimensionInfo[] GetDimensions(this FieldInfo _fieldInfo)
+        private static DimensionInfo[] GetDimensions(this FieldInfo _fieldInfo)
         {
             return _fieldInfo.GetCustomAttributes<ArrayAttribute> ()
                              .OrderBy (x => x.Index)
@@ -55,8 +55,10 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 
         public static Type[] GetFieldDimensionsTypes(this FieldInfo _fieldInfo)
         {
-            return ClassMapping.GetEnumeratedTypes (_fieldInfo.FieldType, GetDimensions (_fieldInfo).Length);
+            return ClassMapping.GetEnumeratedTypes (_fieldInfo.FieldType, _fieldInfo.GetCustomAttributes<ArrayAttribute> ().Count());
         }
+
+        public static bool HasDimensions(this FieldInfo _fieldInfo) => _fieldInfo.GetCustomAttributes<ArrayAttribute> ().Any ();
 
         #endregion
 

@@ -6,7 +6,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 {
     // I have no idea what I am doing, but it seems THIS is doing good.
     // It is sort of  Either<A,B>  monad wrapped in other stuff in attempt to reduce the entity types count.
-    public class FlexibleArray<T> 
+    class FlexibleArray<T> 
     {
         private readonly T value;
         private readonly IEnumerable<FlexibleArray<T>> dimension;

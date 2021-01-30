@@ -1,6 +1,6 @@
 ﻿namespace Mimimi.SpreadsheetsSerialization.Core
 {
-    public class Either<A, B>
+    class Either<A, B>
     {
         public A Left { get; private set; }
         public B Right { get; private set; }

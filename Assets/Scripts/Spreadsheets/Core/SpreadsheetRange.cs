@@ -5,7 +5,7 @@ using Mimimi.Tools.A1Notation;
 
 namespace Mimimi.SpreadsheetsSerialization.Core
 {
-    public class SpreadsheetRange
+    class SpreadsheetRange
     {
         private readonly SpreadsheetRangePath path;
         private readonly List<List<string>> data;

@@ -3,7 +3,7 @@ using Google.Apis.Sheets.v4.Data;
 
 namespace Mimimi.SpreadsheetsSerialization.Core
 {
-    internal interface IDataPlacementInfo
+    interface IDataPlacementInfo
     {
         string SheetName { get; }
         string Range { get; } 

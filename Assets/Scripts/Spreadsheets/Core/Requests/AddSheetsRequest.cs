@@ -2,7 +2,7 @@
 
 namespace Mimimi.SpreadsheetsSerialization.Core
 {
-    public class AddSheetsRequest : CustomRequest
+    class AddSheetsRequest : CustomRequest
     {
         private Action<bool> callback;
         public string[] sheetNames;
@@ -21,15 +21,11 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             callback.Invoke (_result);
         }
 
-        public static void Send(string _spreadsheetID, Action<bool> _callback, params string[] _sheetNames)
+        internal AddSheetsRequest (string _spreadsheetID, Action<bool> _callback, params string[] _sheetNames)
         {
-            var rq = new AddSheetsRequest
-            {
-                callback = _callback,
-                sheetNames = _sheetNames,
-                SpreadsheetID = _spreadsheetID
-            };
-            SerializationService.Enqueue (rq);
+            callback = _callback;
+            sheetNames = _sheetNames;
+            SpreadsheetID = _spreadsheetID;
         }
     }
 }

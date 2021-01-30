@@ -3,21 +3,20 @@ using Google.Apis.Sheets.v4.Data;
 
 namespace Mimimi.SpreadsheetsSerialization.Core
 {
-    public class SpreadsheetRequest : CustomRequest
+    class SpreadsheetsDataRequest : CustomRequest
     {
         private Action<Spreadsheet> callback;
 
-        public static void Send(string _spreadsheetID, Action<Spreadsheet> _callback)
+        public static SpreadsheetsDataRequest Create(string _spreadsheetID, Action<Spreadsheet> _callback)
         {
-            var rq = new SpreadsheetRequest ()
+            return new SpreadsheetsDataRequest ()
             {
                 SpreadsheetID = _spreadsheetID,
                 callback = _callback,
             };
-            SerializationService.Enqueue (rq);
         }
 
-        private SpreadsheetRequest () { }
+        private SpreadsheetsDataRequest () { }
 
         public void SetResponse(Spreadsheet _spreadsheet)
         {

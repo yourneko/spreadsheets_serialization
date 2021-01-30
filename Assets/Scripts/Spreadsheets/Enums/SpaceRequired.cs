@@ -1,18 +1,23 @@
-﻿namespace Mimimi.SpreadsheetsSerialization
+﻿using System;
+
+namespace Mimimi.SpreadsheetsSerialization
 {
+    [Flags]
     public enum SpaceRequired
     {
+        Undefined = 0,
+
         /// <summary> SingleValue occupies a single cell and has no inner structure. </summary>
         /// <remarks> The DEFAULT option. </remarks>
-        SingleValue = 0,
+        SingleValue = 1,
 
         /// <summary> Range contains either SingleValues or other Ranges. </summary>
-        Range = 1,
+        Range = 2,
 
         /// <summary> Sheets may contain Ranges and SingleValues. </summary>
-        Sheet = 2,
+        Sheet = 4,
 
         /// <summary> The set of sheets connected by the content. </summary>
-        SheetsGroup = 3,
+        SheetsGroup = 8,
     }
 }

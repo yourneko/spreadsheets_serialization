@@ -1,24 +1,29 @@
 ﻿using System.Linq;
+using System;
 using Google.Apis.Sheets.v4.Data;
 
 namespace Mimimi.SpreadsheetsSerialization.Core
 {
-    internal class SheetInfo : IDataPlacementInfo
+    class SheetInfo : IDataPlacementInfo
     {
         public readonly string name;
         public readonly string pivot;
         public readonly string end;
+        public readonly Type type;
+        public readonly int[] indices;
 
-        protected ValueRange source;
+        protected ValueRange source = null;
 
         public string SheetName => name;
         public string Range => $"'{name}'!{pivot}:{end}";
 
-        public SheetInfo(string _name, string _pivot, string _end)
+        public SheetInfo(Type _type, string _parametrizedName, params int[] _indices)
         {
-            name = _name;
-            pivot = _pivot;
-            end = _end;
+            type = _type;
+            indices = _indices;
+            name = ClassNaming.AssembleSheetName (_type, _parametrizedName, indices);
+            pivot = ClassMapping.GetPivotPoint (_type).A1;
+            end = SpreadsheetsHelpers.DEFAULT_RANGE_END;
         }
 
         public FlexibleArray<string> SelectRead(ValueRange[] _ranges)

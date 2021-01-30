@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace Mimimi.SpreadsheetsSerialization.Core
 {
-    public class FailHandler : IHttpUnsuccessfulResponseHandler
+    class FailHandler : IHttpUnsuccessfulResponseHandler
     {
         public event Action OnFailHandled;
 

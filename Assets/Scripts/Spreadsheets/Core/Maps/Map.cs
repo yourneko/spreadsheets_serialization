@@ -4,7 +4,7 @@ using System.Reflection;
 
 namespace Mimimi.SpreadsheetsSerialization.Core
 {
-    public abstract class Map
+    abstract class Map
     {
         private static readonly MethodInfo createRangeMethod, createValueMethod;
 

@@ -7,11 +7,11 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 {
     public class CustomBatchGetRequest : CustomBatchRequest
     {
-        private readonly bool containsSheetArray;
-
-        public override List<ValueRange> ValueRanges { get; protected set; }
+        public event Action OnCompleted;
+        
+        public List<ValueRange> ValueRanges { get; protected set; }
         private readonly Dictionary<FieldAssembler, object> requests;
-        private readonly List<string> ranges;
+        private List<string> ranges;
 
         public IEnumerable<string> SheetRanges => ranges.Distinct ();
         public override string Description => $"BatchGet request. Contains {requests.Count} objects, {ranges.Count} sheets total";
@@ -23,6 +23,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 
             requests.Clear ();
             ranges.Clear ();
+            OnCompleted?.Invoke ();
         }
 
         public CustomBatchGetRequest(string spreadsheetID, bool containsIndexedSheets)
@@ -31,7 +32,6 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             SpreadsheetID = spreadsheetID;
             requests = new Dictionary<FieldAssembler, object> ();
             ranges = new List<string> ();
-            containsSheetArray = containsIndexedSheets;
         }
 
         /// <summary> 
@@ -41,7 +41,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
         /// <remarks> Don't keep references to enqueued request. </remarks>
         public void Add<T>(Action<T> _callback)
         {
-            if (!locked)
+            if (!Locked)
                 requests.Add (new FieldAssembler (typeof (T)), _callback);
             else
                 throw new Exception ("New requests cannot be included to enqueued batched request.");
@@ -49,13 +49,12 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             // but personally I have never run in situation where it would happen to be any useful
         }
 
-        public void Enqueue()
+        internal void Add(Type _type, object _action)
         {
-            locked = true;
-            if (containsSheetArray)
-                SpreadsheetRequest.Send (SpreadsheetID, OnSpreadsheetReceived);
+            if (!Locked)
+                requests.Add (new FieldAssembler (_type), _action);
             else
-                StartQueue (null);
+                throw new Exception ("New requests cannot be included to enqueued batched request.");
         }
 
         private void OnSpreadsheetReceived(Spreadsheet _spreadsheet)
@@ -66,16 +65,39 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 
         private void StartQueue(string[] _existingSheetNames)
         {
-            foreach (var r in requests)
-            {
-                var required = r.Key.GetSpreadsheetRanges (_existingSheetNames).GetValues()
-                                    .Select(x => x.Range)
-                                    .Distinct();
-                foreach (var e in required)
-                    ranges.Add (e);
-            }
-            UnityEngine.Debug.Log (string.Join (Environment.NewLine, ranges));
-            SerializationService.Enqueue (this);
+            ranges = requests.SelectMany (rq => rq.Key
+                                                  .GetSpreadsheetRanges (_existingSheetNames)
+                                                  .GetValues ())
+                             .Select (placement => placement.Range)
+                             .Distinct ()
+                             .ToList ();
+            Enqueue ();
         }
     }
+/*
+    public class CustomGetValueRequest : CustomRequest
+    {
+        private object callbackObject;
+        private SheetInfo sheet;
+
+        internal static SheetInfo GetSheetInfo(Type _sheetType, string _parametrizedName, params int[] _indices)
+        {
+            UnityEngine.Debug.Assert (ClassNaming.IsSheet(_sheetType) || ClassNaming.IsGroup (_sheetType));
+            return new SheetInfo (_sheetType, _parametrizedName, _indices);
+
+        }
+
+        internal static void GetValue<T>(string _spreadsheetId, SheetInfo _sheet, Action<T> _callback)
+        {
+            UnityEngine.Debug.Assert (_sheet.ContainsFieldOfType (typeof (T)));
+            var rq = new CustomGetValueRequest ()
+            {
+                callbackObject = _callback,
+                sheet = _sheet,
+            };
+
+            CustomBatchGetRequest getrq = new CustomBatchGetRequest (_spreadsheetId, false);
+            rq.Add(_sheet.type, )
+        }
+    }*/
 }

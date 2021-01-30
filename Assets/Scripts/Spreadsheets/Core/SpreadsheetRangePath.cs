@@ -5,7 +5,7 @@ using Mimimi.Tools.A1Notation;
 
 namespace Mimimi.SpreadsheetsSerialization.Core
 {
-    public class SpreadsheetRangePath
+    class SpreadsheetRangePath
     {
         private const string OPENING_SEQUENCE = "##";
 

@@ -1,11 +1,22 @@
-﻿using System.Collections.Generic;
-using Google.Apis.Sheets.v4.Data;
-
-namespace Mimimi.SpreadsheetsSerialization.Core
+﻿namespace Mimimi.SpreadsheetsSerialization.Core
 {
-    public abstract class CustomBatchRequest : CustomRequest 
+    public abstract class CustomBatchRequest : CustomRequest
     {
-        protected bool locked;
-        public abstract List<ValueRange> ValueRanges { get; protected set; }
+        internal SerializationService Service;
+
+        protected void EnqueueRequest(CustomRequest _request)
+        {
+            Service.Enqueue (_request);
+        }
+        
+        public virtual void Enqueue()
+        {
+            if (Locked)
+                return;
+
+            Lock ();
+            EnqueueRequest (this);
+        }
     }
 }
+

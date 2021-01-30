@@ -21,9 +21,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             var fields = ClassMapping.GetClassFields (type);
             fieldDetails = fields.Bind (CreateDetails);
 
-            var smallerElementsSheet = new SheetInfo (_name: ClassNaming.AssembleSheetName (type, parametrizedName),
-                                                    _pivot: ClassMapping.GetPivotPoint (type).A1,
-                                                    _end: SpreadsheetsHelpers.DEFAULT_RANGE_END);
+            var smallerElementsSheet = new SheetInfo (type, parametrizedName);
             partitionContainer = new FlexibleArray<IDataPlacementInfo> ( new SheetPartitionInfo (smallerElementsSheet, type));
         }
 

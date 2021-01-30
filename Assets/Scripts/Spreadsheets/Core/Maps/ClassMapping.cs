@@ -15,7 +15,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 #region Mapping
 
         /// <summary> Uses the scheme of type to create a FlexibleArray of Map containers. </summary>
-        public static FlexibleArray<Map> ObjectToMapArray<T>(T obj)
+        internal static FlexibleArray<Map> ObjectToMapArray<T>(T obj)
         {
             var fields = fieldsDictionary.ContainsKey (typeof (T)) ? 
                          fieldsDictionary[typeof (T)] : 
@@ -23,7 +23,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             return fields.Bind (obj.ObjectToMap);
         }
 
-        public static FlexibleArray<FieldInfo> GetClassFields(Type _type)
+        internal static FlexibleArray<FieldInfo> GetClassFields(Type _type)
         {
             if (IsMappableType (_type))
                 return fieldsDictionary.ContainsKey (_type) ? 
@@ -56,11 +56,11 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 
         // Used by GetRequest
         // Assembles an object of requested type from _values, and then passed it to user through callback 
-        public static void InvokeGetCallback(Type _type, object _callback, FlexibleArray<string> _values)
+        internal static void InvokeGetCallback(Type _type, object _callback, FlexibleArray<string> _values)
         {
             var genericCallbackParameters = new[] { _callback, GetObjectValue (_type, _values) };
             typeof (ClassMapping).GetMethod ("GenericCallbackInvoke", BindingFlags.Static | BindingFlags.NonPublic)
-                                 .MakeGenericMethod (_type)
+                                ?.MakeGenericMethod (_type)
                                  .Invoke (null, genericCallbackParameters);
         }
 
@@ -73,7 +73,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
         // NOTE:
         // Collection classes are not mapped, and all these conditions won't work on them.
         // Objects of collection types are made separately, in  AssignCollectionValues  method.
-        public static object GetObjectValue(Type _type, FlexibleArray<string> _values)
+        internal static object GetObjectValue(Type _type, FlexibleArray<string> _values)
         {
             if (IsMappableType (_type))
             {
@@ -197,12 +197,6 @@ namespace Mimimi.SpreadsheetsSerialization.Core
 
 #endregion
 
-        public static FlexibleArray<FieldInfo> SmallElementsArray(Type _type)
-        {
-            UnityEngine.Debug.Assert (GetTypeSpaceRequirement (_type) == SpaceRequired.SheetsGroup);
-            return GetClassFields (_type).Filter (IsSmallElementField);
-        }
 
-        private static bool IsSmallElementField(FieldInfo _info) => GetTypeSpaceRequirement (_info.BaseFieldType ()) < SpaceRequired.Sheet;
     }
 }

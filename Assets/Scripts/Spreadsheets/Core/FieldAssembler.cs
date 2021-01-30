@@ -44,9 +44,7 @@ namespace Mimimi.SpreadsheetsSerialization.Core
             switch (space)
             {
                 case SpaceRequired.Sheet:
-                    return new Either<GroupInfo, SheetInfo> ( new SheetInfo (_name: ClassNaming.AssembleSheetName(titleType, parametrizedName, _indices), 
-                                                                             _pivot: ClassMapping.GetPivotPoint (titleType).A1, 
-                                                                             _end: SpreadsheetsHelpers.DEFAULT_RANGE_END));
+                    return new Either<GroupInfo, SheetInfo> ( new SheetInfo (titleType, parametrizedName, _indices));
                 case SpaceRequired.SheetsGroup:
                     return new Either<GroupInfo, SheetInfo> (new GroupInfo (titleType, ClassNaming.AssembleGroupName(titleType, parametrizedName, _indices)));
                 default: throw new Exception ($"type of {titleType.Name} > space {space} is too small");

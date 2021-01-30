@@ -5,7 +5,7 @@ using Google.Apis.Sheets.v4.Data;
 
 namespace Mimimi.SpreadsheetsSerialization.Core
 {
-    internal static class SpreadsheetsHelpers
+    static class SpreadsheetsHelpers
     {
         internal const string DEFAULT_RANGE_PIVOT = "B2";
         internal const string DEFAULT_RANGE_END = "ZZ999";
