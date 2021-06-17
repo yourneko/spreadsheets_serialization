@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Google.Apis.Services;
@@ -10,6 +11,7 @@ namespace RecursiveMapper
 {
     public class MapperService : IDisposable
     {
+        public const string StartInCell = "A2";
         private SheetsService Service { get; }
 
         /// <summary>
@@ -22,12 +24,8 @@ namespace RecursiveMapper
         public async Task<Either<T, Exception>> ReadAsync<T>(string spreadsheet, string sheet = "")
         {
             var availableSheets = await Service.GetSheetsListAsync (spreadsheet);
-
-            var request = Service.Spreadsheets.Values.BatchGet (spreadsheet);
-            request.Ranges = GetRangesToRead (typeof(T), sheet, availableSheets);
-            var result = await request.ExecuteAsync ();
-
-            return AssembleObjectFromValueRanges<T> (result.ValueRanges.ToArray (), sheet);
+            var result = await Service.GetValueRanges(spreadsheet, GetRangesToRead (typeof(T), sheet, availableSheets));
+            return AssembleObjectFromValueRanges<T> (result, sheet);
         }
 
         /// <summary>
@@ -39,8 +37,8 @@ namespace RecursiveMapper
         /// <typeparam name="T">Type of serialized object.</typeparam>
         public Task<bool> WriteAsync<T>(T obj, string spreadsheet, string sheet = "")
         {
-            return Service.WriteRangesAsync (spreadsheet,
-                                             AssembleValueRanges (SerializeToMap (obj), sheet));
+            var values = AssembleValueRanges (SerializeToMap (obj), sheet).ToList ();
+            return Service.WriteRangesAsync (spreadsheet, values);
         }
 
         /// <summary>
@@ -59,33 +57,29 @@ namespace RecursiveMapper
             Service.Dispose ();
         }
 
+        IEnumerable<ValueRange> AssembleValueRanges(RecursiveMap<string> data, string parentSheet)
+        {
+            if (data.CreateValueRange (parentSheet, StartInCell, out var range))
+                yield return range;
+
+            var containedSheets = data.Right
+                                      .Where (e => !e.DimensionInfo.IsCompact)
+                                      .SelectMany (e => AssembleValueRanges (e, parentSheet.GetFullSheetName (e)));
+            foreach (var sheet in containedSheets)
+                yield return sheet;
+        }
+
         static RecursiveMap<string> SerializeToMap(object mapped)
         {
             var type = mapped.GetType ();
             return ReflectionUtility.IsSerializedToValue (type)
-                       ? new RecursiveMap<string> (mapped.ToString (), // todo - add more relevant serialization
-                                                   DimensionInfo.Point)
+                       ? new RecursiveMap<string> (mapped.Serialize (), DimensionInfo.Point)
                        : MappingUtility.GetMappedFields (type)
-                                       .Apply (mapped.GetExpandedValue).Simplify ()
-                                       .Apply (SerializeToMap).Simplify ();
+                                       .Cast (mapped.GetExpandedValue).Simplify ()
+                                       .Cast (SerializeToMap).Simplify ();
         }
 
-        ValueRange[] AssembleValueRanges(RecursiveMap<string> data, string sheetName)
-        {
-            // 1. start from a single Sheet object provided by user
-            // 2. if has Object/Value members, include a name of the sheet to the list
-            // 3. add indexed sheets for every Sheet Array element contained
-            // 4. for contained Sheet members, repeat from (1)
-            //
-            // compare the assembled list of sheets with the one from (0) spreadsheet. make a Create request for every missing sheet
-            // Await Create sheet requests
-            // assemble content of each sheet
-            // count sizes of content, set ranges
-            // Await Update request
-            throw new NotImplementedException ();
-        }
-
-        string[] GetRangesToRead(Type type, string sheet, string[] availableSheets)
+        static string[] GetRangesToRead(Type type, string sheet, string[] availableSheets)
         {
             // 1. start from single sheet
             // 2. if has Object/Value members, include a name of the sheet
@@ -105,7 +99,7 @@ namespace RecursiveMapper
             //  this thing should probably return a recursive map
         }
 
-        Either<T, Exception> AssembleObjectFromValueRanges<T>(ValueRange[] ranges, string sheet)
+        static Either<T, Exception> AssembleObjectFromValueRanges<T>(IList<ValueRange> ranges, string sheet)
         {
             throw new NotImplementedException ();
         }

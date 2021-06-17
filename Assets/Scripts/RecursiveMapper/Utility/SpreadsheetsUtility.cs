@@ -41,6 +41,14 @@ namespace RecursiveMapper.Utility
             return spreadsheet.Sheets.Select (sheet => sheet.Properties.Title).ToArray ();
         }
 
+        public static async Task<IList<ValueRange>> GetValueRanges(this SheetsService service, string spreadsheet, string[] ranges)
+        {
+            var request = service.Spreadsheets.Values.BatchGet (spreadsheet);
+            request.Ranges = ranges;
+            var result = await request.ExecuteAsync ();
+            return result.ValueRanges;
+        }
+
 #endregion
 #region Assembling requests
 

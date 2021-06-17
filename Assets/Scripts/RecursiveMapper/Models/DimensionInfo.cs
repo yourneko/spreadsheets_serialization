@@ -13,5 +13,7 @@ namespace RecursiveMapper
             ContentType = type;
             Sheet       = sheet;
         }
+
+        public bool IsCompact => (int)ContentType < 5;
     }
 }

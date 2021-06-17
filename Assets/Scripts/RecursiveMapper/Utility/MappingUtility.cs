@@ -21,9 +21,12 @@ namespace RecursiveMapper.Utility
         {
             var numeratedTypes = ReflectionUtility.GetEnumeratedTypes (info).ToArray ();
 
+            var dimensionInfo = GetDimensionInfoForType (info.FieldType);
             var dimensions = Enumerable.Range (0, numeratedTypes.Length - 1)
-                                       .Select (index => new DimensionInfo ((ContentType)(3 + (index & 1)))) // todo - use attributes for this
-                                       .Append(GetDimensionInfoForType(info.FieldType))
+                                       .Select (index => new DimensionInfo (dimensionInfo.ContentType == ContentType.Sheet
+                                                                                ? ContentType.SheetsArray
+                                                                                : (ContentType)(3 + (index & 1)))) // todo - use attributes for this
+                                       .Append(dimensionInfo)
                                        .ToArray();
 
             var map = new RecursiveMap<object> (info.GetValue (obj), dimensions[0]);
@@ -38,6 +41,13 @@ namespace RecursiveMapper.Utility
             return map.IsLeft
                        ? map.Left
                        : new RecursiveMap<T> (map.Right.Select (element => element.Simplify ()), map.DimensionInfo);
+        }
+
+        public static string GetFullSheetName(this string parentName, RecursiveMap<string> child)
+        {
+            return parentName.Contains ("{0}")
+                       ? string.Format (parentName, child.DimensionInfo.Sheet)
+                       : $"{parentName} {child.DimensionInfo.Sheet}";
         }
 
         static DimensionInfo GetDimensionInfoForType(Type type)
@@ -57,5 +67,19 @@ namespace RecursiveMapper.Utility
         static IEnumerable<object> ExpandCollection<T>(object value) => (value is IEnumerable<T> collection)
                                                                             ? collection.Cast<object> ()
                                                                             : throw new InvalidCastException ();
+
+
+        public static string Serialize<T>(this T target)
+        {
+            return target switch
+                   {
+                       int i => i.ToString(),
+                       bool b => b ? "true" : "false",
+                       null => string.Empty,
+                       string s => s,
+                       float f => f.ToString("0.000"),
+                       _ => target.ToString(),
+                   };
+        }
     }
 }
