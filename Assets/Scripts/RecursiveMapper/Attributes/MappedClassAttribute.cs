@@ -5,13 +5,11 @@ namespace RecursiveMapper
     [AttributeUsage (AttributeTargets.Class)]
     public class MappedClassAttribute : Attribute
     {
-        public readonly string StartFrom;
-        public readonly bool IsCompact;
-        public readonly string SheetName;
+        internal readonly bool IsCompact;
+        internal readonly string SheetName;
 
-        public MappedClassAttribute(string sheetName, string startFrom = "B2")
+        public MappedClassAttribute(string sheetName)  // todo - set size
         {
-            StartFrom = startFrom;
             IsCompact = true;
             SheetName = sheetName;
         }

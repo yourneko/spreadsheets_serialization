@@ -6,17 +6,22 @@ using Google.Apis.Sheets.v4.Data;
 
 namespace RecursiveMapper.Utility
 {
+    // Packing mapped data to ValueRange
     static class ValueRangeUtility
     {
         private static readonly IList<IList<object>> Empty = new List<IList<object>> ();
 
-        public static bool CreateValueRange(this RecursiveMap<string> content, string sheet, string firstCell, out ValueRange range)
+        public static string GetFullSheetName(string parentName, string childName) => parentName.Contains ("{0}")
+                                                                                            ? string.Format (parentName, childName)
+                                                                                            : $"{parentName} {childName}";
+
+        public static bool CreateValueRange(this RecursiveMap<string> content, string firstCell, out ValueRange range)
         {
             StringBuilder sb = new StringBuilder ();
             var values = content.Arrange (ref sb);
             values.Insert (0, new object[] {sb.ToString ()});
 
-            range = Create (values, sheet, firstCell);
+            range = Create (values, content.DimensionInfo.Sheet, firstCell);
             return values.Count > 1;
         }
 
@@ -95,5 +100,11 @@ namespace RecursiveMapper.Utility
                 foreach (var value in added[i])
                     target[i].Add (value);
         }
+
+         public static RecursiveMap<string> ToMap(this ValueRange values)
+         {
+             // value range to map
+             throw new NotImplementedException ();
+         }
     }
 }

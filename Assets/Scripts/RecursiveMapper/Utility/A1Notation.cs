@@ -1,34 +1,26 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace RecursiveMapper.Utility
 {
     static class A1Notation
 	{
+        // In Google Spreadsheets notation, upper boundary of the range may be missing. It's interpreted as 'up to the big number'
+        const int BIG_NUMBER = 999;
         const int LETTERS_COUNT = 26;
-        const int BIG_LETTER_INDEX = 999;
-        const int BIG_DIGIT_INDEX = 999;
 
-        /// <summary> 
-        /// In Google Spreadsheets notation, numbers or letters or both can be missing in closing boundary.
-        /// This can be roughly counted as 'Infinity' or some big number.
-        /// </summary>
         public static (int x, int y) Read(string a1)
         {
-            char[] digits = a1.Reverse ()
-                               .TakeWhile (char.IsDigit)
-                               .ToArray ();
-            char[] letters = a1.Reverse ()
-                                .Skip (digits.Length)
-                                .Select(char.ToUpperInvariant)
-                                .ToArray ();
-            return  (letters.Length > 0 ? Evaluate (letters, 'A', LETTERS_COUNT) : BIG_LETTER_INDEX, 
-                     digits.Length > 0 ? Evaluate(digits, '0', 10) - 1 : BIG_DIGIT_INDEX);
+            var letters = a1.Where (char.IsLetter).Select (char.ToUpperInvariant).Reverse ().ToArray ();
+            var digits = a1.Where (char.IsDigit).Reverse ().ToArray ();
+            return  (Evaluate (letters, 'A', LETTERS_COUNT),
+                     Evaluate(digits, '0', 10) - 1);
         }
 
-        public static string Write(int x, int y) => ToLetters (x) + ToDigits (y);
+        public static string Write(int x, int y) => ToLetters (x) + (y + 1);
 
-        private static string ToLetters(int number)
+        static string ToLetters(int number)    // so bad
         {
             List<int> chars = new List<int> { number };
             while (chars.Last() >= LETTERS_COUNT)
@@ -39,18 +31,8 @@ namespace RecursiveMapper.Utility
             return new string(chars.Select (x => (char)('A' + x)).Reverse().ToArray ());
         }
 
-        private static string ToDigits(int number) => (number + 1).ToString ();
-
-        private static int Evaluate(IEnumerable<char> sequence, char zero, int countBase)
-        {
-            int currentRank = 1;
-            int current = 0;
-            foreach (var c in sequence)
-            {
-                current += (c - zero) * currentRank;
-                currentRank *= countBase;
-            }
-            return current;
-        }
+        static int Evaluate(char[] digits, char zero, int @base) => digits.Any ()
+                                                                        ? (int)digits.Select ((c, i) => (c - zero) * Math.Pow (@base, i)).Sum ()
+                                                                        : BIG_NUMBER;
     }
 }

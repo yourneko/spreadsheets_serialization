@@ -5,9 +5,13 @@ namespace RecursiveMapper
     [AttributeUsage (AttributeTargets.Field)]
     public class MappedAttribute : Attribute
     {
-        public int Position { get; set; }
-        public int DimensionCount { get; set; }
+        internal readonly int Position;
+        internal readonly int DimensionCount;
 
-        public MappedAttribute() { }
+        public MappedAttribute(int position, int dimensions = 0)
+        {
+            DimensionCount = dimensions;
+            Position       = position;
+        }
     }
 }

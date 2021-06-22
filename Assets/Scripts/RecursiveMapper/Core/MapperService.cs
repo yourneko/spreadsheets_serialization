@@ -11,7 +11,8 @@ namespace RecursiveMapper
 {
     public class MapperService : IDisposable
     {
-        public const string StartInCell = "A2";
+        const string FirstCellOfValueRange = "A2";
+
         private SheetsService Service { get; }
 
         /// <summary>
@@ -24,8 +25,14 @@ namespace RecursiveMapper
         public async Task<Either<T, Exception>> ReadAsync<T>(string spreadsheet, string sheet = "")
         {
             var availableSheets = await Service.GetSheetsListAsync (spreadsheet);
-            var result = await Service.GetValueRanges(spreadsheet, GetRangesToRead (typeof(T), sheet, availableSheets));
-            return AssembleObjectFromValueRanges<T> (result, sheet);
+            var hierarchy = availableSheets.MapSheetsHierarchy (typeof(T), sheet.CreateDimensionInfo (typeof(T)));
+
+            if (!hierarchy.All(match => match))               // todo - replace with better check
+                return new Either<T, Exception> (new Exception ("Spreadsheet doesn't contain enough data to assemble the requested object."));
+
+            var valueRanges = await Service.GetValueRanges (spreadsheet, ListExistingSheets (hierarchy));
+            var result = UnmapObject<T> (hierarchy.AssembleMap (valueRanges.Select (range => range.ToMap ())));
+            return new Either<T, Exception>(result);
         }
 
         /// <summary>
@@ -37,8 +44,8 @@ namespace RecursiveMapper
         /// <typeparam name="T">Type of serialized object.</typeparam>
         public Task<bool> WriteAsync<T>(T obj, string spreadsheet, string sheet = "")
         {
-            var values = AssembleValueRanges (SerializeToMap (obj), sheet).ToList ();
-            return Service.WriteRangesAsync (spreadsheet, values);
+            var map = MappingUtility.Serialize (obj, sheet.CreateDimensionInfo (typeof(T)));
+            return Service.WriteRangesAsync (spreadsheet,  AssembleValueRanges (map).ToList ());
         }
 
         /// <summary>
@@ -57,50 +64,24 @@ namespace RecursiveMapper
             Service.Dispose ();
         }
 
-        IEnumerable<ValueRange> AssembleValueRanges(RecursiveMap<string> data, string parentSheet)
+        static IEnumerable<ValueRange> AssembleValueRanges(RecursiveMap<string> data)
         {
-            if (data.CreateValueRange (parentSheet, StartInCell, out var range))
-                yield return range;
-
-            var containedSheets = data.Right
-                                      .Where (e => !e.DimensionInfo.IsCompact)
-                                      .SelectMany (e => AssembleValueRanges (e, parentSheet.GetFullSheetName (e)));
-            foreach (var sheet in containedSheets)
-                yield return sheet;
+            var ranges = data.Right.Where (e => !e.DimensionInfo.IsCompact)
+                             .SelectMany (AssembleValueRanges);
+            return (data.CreateValueRange (FirstCellOfValueRange, out var range))
+                       ? ranges.Append (range)
+                       : ranges;
         }
 
-        static RecursiveMap<string> SerializeToMap(object mapped)
+        static string[] ListExistingSheets(RecursiveMap<bool> sheetsHierarchy)
         {
-            var type = mapped.GetType ();
-            return ReflectionUtility.IsSerializedToValue (type)
-                       ? new RecursiveMap<string> (mapped.Serialize (), DimensionInfo.Point)
-                       : MappingUtility.GetMappedFields (type)
-                                       .Cast (mapped.GetExpandedValue).Simplify ()
-                                       .Cast (SerializeToMap).Simplify ();
-        }
-
-        static string[] GetRangesToRead(Type type, string sheet, string[] availableSheets)
-        {
-            // 1. start from single sheet
-            // 2. if has Object/Value members, include a name of the sheet
-            // 3. for Sheet Array members, include as many elements as possible (indices start from 1), 0 is valid amount   
-            // 4. for each Sheet member, add sheet name to its name and repeat from (1)
-            //
-            // Now we have a list of Sheet objects, and required sheets for each of them
-            // ** It is possible to limit requested range for some sheets, by looking at Object/Value Array directions in each of those 
-            // ** Array size is not limited, so requested range will have no upper bound in the array extension direction
-            // Calculate the exact ranges, no non-existing sheets allowed.
-            //
-            // Await requested ValueRange's from the service. 
-            // Return the content of ranges to a list of Sheet objects, and assemble them.
-            // Return the requested T object to a user.
-
+            // from a built hierarchy, get the list of value ranges to GET from the spreadsheets
             throw new NotImplementedException ();
-            //  this thing should probably return a recursive map
         }
 
-        static Either<T, Exception> AssembleObjectFromValueRanges<T>(IList<ValueRange> ranges, string sheet)
+        static T UnmapObject<T>(RecursiveMap<string> ranges)
         {
+            // recursively assemble the object from map
             throw new NotImplementedException ();
         }
     }

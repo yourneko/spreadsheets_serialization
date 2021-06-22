@@ -5,81 +5,93 @@ using System.Reflection;
 
 namespace RecursiveMapper.Utility
 {
+    // Operations with RecursiveMap
     static class MappingUtility
     {
         private static readonly MethodInfo ExpandMethodInfo = typeof(MappingUtility).GetMethod ("ExpandCollection");
 
-        public static RecursiveMap<FieldInfo> GetMappedFields(Type type)
+        public static IEnumerable<FieldInfo> GetMappedFields(this Type type) => ReflectionUtility.GetFieldsWithMappedAttribute (type)
+                                                                                                 .OrderBy (x => x.GetMappedAttribute ().Position);
+
+        public static RecursiveMap<string> Serialize(object obj, DimensionInfo info)
         {
-            return new RecursiveMap<FieldInfo> (ReflectionUtility.GetFieldsWithMappedAttribute (type)
-                                                                 .OrderBy (x => x.GetMappedAttribute ().Position)
-                                                                 .Select (info => new RecursiveMap<FieldInfo> (info, DimensionInfo.None)),
-                                                DimensionInfo.None /*GetDimensionInfoForType(type)*/);
+            var type = obj.GetType ();
+            return type.IsMapped ()
+                       ? new RecursiveMap<object> (type.GetMappedFields ().Select (field => MapFieldValue(field, obj, info.Sheet)), info)
+                          .Cast (Serialize)
+                       : new RecursiveMap<string> (SerializeValue (obj), DimensionInfo.Point);
         }
 
-        public static RecursiveMap<object> GetExpandedValue(this object obj, FieldInfo info)
+        public static RecursiveMap<bool> MapSheetsHierarchy(this string[] availableSheets, Type type, DimensionInfo info)
         {
-            var numeratedTypes = ReflectionUtility.GetEnumeratedTypes (info).ToArray ();
+            // this goes 1 level deeper than we need. it will become useful later, when ValueRanges will be attached
+            return type.IsCompact ()
+                       ? new RecursiveMap<bool> (availableSheets.Contains(info.Sheet), info.Sheet.CreateDimensionInfo (type))
+                       : new RecursiveMap<Type> (type.GetMappedFields ().Select (field => UnwrapFieldTypes(field, info.Sheet)), info)
+                          .Cast (availableSheets.MapSheetsHierarchy);
+        }
 
-            var dimensionInfo = GetDimensionInfoForType (info.FieldType);
-            var dimensions = Enumerable.Range (0, numeratedTypes.Length - 1)
-                                       .Select (index => new DimensionInfo (dimensionInfo.ContentType == ContentType.Sheet
-                                                                                ? ContentType.SheetsArray
-                                                                                : (ContentType)(3 + (index & 1)))) // todo - use attributes for this
-                                       .Append(dimensionInfo)
-                                       .ToArray();
+        static RecursiveMap<Type> UnwrapFieldTypes(FieldInfo field, string parentSheet)
+        {
+            var finalType = ReflectionUtility.GetEnumeratedTypes (field).Last ();
+            var map = new RecursiveMap<Type> (finalType, parentSheet.CreateDimensionInfo (finalType));
 
-            var map = new RecursiveMap<object> (info.GetValue (obj), dimensions[0]);
-            for (int i = 1; i < numeratedTypes.Length; i++)
-                map.Expand (numeratedTypes[i].ToCollection, dimensions[i]);
-
+            // todo - pass not evaluated enumerable? (to keep available sheets inside of MapperService)
             return map;
         }
 
-        public static RecursiveMap<T> Simplify<T>(this RecursiveMap<RecursiveMap<T>> map)
+
+        public static RecursiveMap<string> AssembleMap(this RecursiveMap<bool> sheetsHierarchy, IEnumerable<RecursiveMap<string>> values)
         {
-            return map.IsLeft
-                       ? map.Left
-                       : new RecursiveMap<T> (map.Right.Select (element => element.Simplify ()), map.DimensionInfo);
+            // from ugly hierarchy and pieces of map restore the full map (in correct order!)
+            throw new NotImplementedException ();
         }
 
-        public static string GetFullSheetName(this string parentName, RecursiveMap<string> child)
-        {
-            return parentName.Contains ("{0}")
-                       ? string.Format (parentName, child.DimensionInfo.Sheet)
-                       : $"{parentName} {child.DimensionInfo.Sheet}";
-        }
-
-        static DimensionInfo GetDimensionInfoForType(Type type)
+        public static DimensionInfo CreateDimensionInfo(this string parentSheet, Type type,  params int[] indices)
         {
             var mapRegionAttribute = type.GetCustomAttribute<MappedClassAttribute> ();
-            return new DimensionInfo (mapRegionAttribute is null
-                                          ? ContentType.Value
-                                          : mapRegionAttribute.IsCompact
-                                              ? ContentType.Object
-                                              : ContentType.Sheet);
+            return new DimensionInfo (indices.Length > 0
+                                          ? (ContentType)(3 + indices.Length & 1)
+                                          : mapRegionAttribute is null
+                                              ? ContentType.Value
+                                              : mapRegionAttribute.IsCompact
+                                                  ? ContentType.Object
+                                                  : ContentType.Sheet,
+                                      ValueRangeUtility.GetFullSheetName(parentSheet, mapRegionAttribute?.SheetName ?? string.Empty),
+                                      indices);
         }
 
-        static IEnumerable<object> ToCollection(this Type type, object element) => (IEnumerable<object>)ExpandMethodInfo.MakeGenericMethod (type)
-                                                                                                                        .Invoke (null, new[] {element});
+        static RecursiveMap<object> MapFieldValue(FieldInfo field, object obj, string parentSheet)
+        {
+            var numeratedTypes = ReflectionUtility.GetEnumeratedTypes (field).ToArray ();
+            var map = new RecursiveMap<object> (field.GetValue (obj), parentSheet.CreateDimensionInfo (numeratedTypes[0]));
+
+            for (int i = 1; i < numeratedTypes.Length; i++)
+                map = map.Cast (numeratedTypes[i].ExpandCollection);
+            return map;
+        }
+
+        static RecursiveMap<object> ExpandCollection(this Type type, object obj, DimensionInfo info)
+        {
+            var elements = (IEnumerable<object>)ExpandMethodInfo.MakeGenericMethod (type)
+                                                                .Invoke (null, new[] {obj});
+            var map = elements.Select ((e, i) => new RecursiveMap<object> (e, info.Sheet.CreateDimensionInfo (type, info.Indices.Append (i).ToArray ())));
+            return new RecursiveMap<object> (map, info);
+        }
+
+        static string SerializeValue<T>(T target) => target switch
+                                                     {
+                                                         int i    => i.ToString (),
+                                                         bool b   => b ? "true" : "false",
+                                                         string s => s,
+                                                         float f  => f.ToString ("0.000"),
+                                                         null     => string.Empty,
+                                                         _        => target.ToString (),
+                                                     };
 
         // used via Reflection
         static IEnumerable<object> ExpandCollection<T>(object value) => (value is IEnumerable<T> collection)
                                                                             ? collection.Cast<object> ()
                                                                             : throw new InvalidCastException ();
-
-
-        public static string Serialize<T>(this T target)
-        {
-            return target switch
-                   {
-                       int i => i.ToString(),
-                       bool b => b ? "true" : "false",
-                       null => string.Empty,
-                       string s => s,
-                       float f => f.ToString("0.000"),
-                       _ => target.ToString(),
-                   };
-        }
     }
 }

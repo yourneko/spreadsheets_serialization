@@ -7,6 +7,7 @@ using Google.Apis.Sheets.v4.Data;
 
 namespace RecursiveMapper.Utility
 {
+    // Assembling and sending requests to Google Spreadsheets API
     static class SpreadsheetsUtility
     {
 #region Extension methods for SheetsService
@@ -23,18 +24,6 @@ namespace RecursiveMapper.Utility
             return result.TotalUpdatedCells > 0;
         }
 
-        private static async Task<bool> CreateSheetsAsync(this SheetsService service, string spreadsheet, ICollection<string> requiredSheets)
-        {
-            if (!requiredSheets.Any ()) throw new Exception ("Writing 0 sheets");
-
-            var existingSheets = await service.GetSheetsListAsync (spreadsheet);
-            var sheetsToAdd = requiredSheets.Except (existingSheets).ToArray ();
-            if (sheetsToAdd.Length == 0) return true;
-
-            var result = await service.Spreadsheets.BatchUpdate (CreateAddSheetsRequest (sheetsToAdd), spreadsheet).ExecuteAsync ();
-            return result.Replies.All(reply => reply.AddSheet.Properties != null);
-        }
-
         public static async Task<string[]> GetSheetsListAsync(this SheetsService service, string spreadsheetID)
         {
             var spreadsheet = await service.Spreadsheets.Get (spreadsheetID).ExecuteAsync ();
@@ -47,6 +36,18 @@ namespace RecursiveMapper.Utility
             request.Ranges = ranges;
             var result = await request.ExecuteAsync ();
             return result.ValueRanges;
+        }
+
+        static async Task<bool> CreateSheetsAsync(this SheetsService service, string spreadsheet, ICollection<string> requiredSheets)
+        {
+            if (!requiredSheets.Any ()) throw new Exception ("Writing 0 sheets");
+
+            var existingSheets = await service.GetSheetsListAsync (spreadsheet);
+            var sheetsToAdd = requiredSheets.Except (existingSheets).ToArray ();
+            if (sheetsToAdd.Length == 0) return true;
+
+            var result = await service.Spreadsheets.BatchUpdate (CreateAddSheetsRequest (sheetsToAdd), spreadsheet).ExecuteAsync ();
+            return result.Replies.All(reply => reply.AddSheet.Properties != null);
         }
 
 #endregion
