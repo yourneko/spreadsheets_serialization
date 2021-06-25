@@ -15,20 +15,8 @@ namespace RecursiveMapper
         /// </summary>
         Object = 2,
         /// <summary>
-        /// Represents an expanded collection. Contains Value, Object, HorizontalArray or VerticalArray entities.
-        /// </summary>
-        HorizontalArray = 3,
-        /// <summary>
-        /// Represents an expanded collection. Contains Value, Object, HorizontalArray or VerticalArray entities.
-        /// </summary>
-        VerticalArray = 4,
-        /// <summary>
-        /// Represents an expanded collection. Contains only elements of 'Sheet' or 'SheetsArray' type.
-        /// </summary>
-        SheetsArray = 5,
-        /// <summary>
         /// Sheet may contain content of any type.
         /// </summary>
-        Sheet = 6,
+        Sheet = 3,
     }
 }

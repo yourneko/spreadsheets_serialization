@@ -5,89 +5,70 @@ using System.Reflection;
 
 namespace RecursiveMapper.Utility
 {
-    // Operations with RecursiveMap
+    // Operations with RecursiveMap, Type & FieldInfo classes
     static class MappingUtility
     {
-        private static readonly MethodInfo ExpandMethodInfo = typeof(MappingUtility).GetMethod ("ExpandCollection");
+        static readonly MethodInfo ExpandMethodInfo = typeof(MappingUtility).GetMethod ("ExpandCollection");
 
-        public static IEnumerable<FieldInfo> GetMappedFields(this Type type) => ReflectionUtility.GetFieldsWithMappedAttribute (type)
-                                                                                                 .OrderBy (x => x.GetMappedAttribute ().Position);
+        static RecursiveMap<T> MapTypeFields<T>(this Type type, Meta meta, Func<FieldInfo, RecursiveMap<T>> valueFunc)
+        {
+            return new RecursiveMap<T> (type.GetFields ()
+                                            .Where (info => info.GetMappedAttribute () != null)
+                                            .OrderBy (x => x.GetMappedAttribute ().Position)        // todo - sort moves to reflection util
+                                            .Select (valueFunc.Invoke),
+                                        meta);
+        }
 
-        public static RecursiveMap<string> Serialize(object obj, DimensionInfo info)
+#region Mapping objects
+
+        public static RecursiveMap<string> SerializeRecursive(object obj, Meta meta)
         {
             var type = obj.GetType ();
             return type.IsMapped ()
-                       ? new RecursiveMap<object> (type.GetMappedFields ().Select (field => MapFieldValue(field, obj, info.Sheet)), info)
-                          .Cast (Serialize)
-                       : new RecursiveMap<string> (SerializeValue (obj), DimensionInfo.Point);
+                       ? type.MapTypeFields(meta, field => MapFieldValue(field, obj, meta))
+                             .Cast (SerializeRecursive)
+                       : new RecursiveMap<string> (Helpers.SerializeValue (obj), Meta.Point);
         }
 
-        public static RecursiveMap<bool> MapSheetsHierarchy(this string[] availableSheets, Type type, DimensionInfo info)
+        static RecursiveMap<object> MapFieldValue(FieldInfo field, object obj, Meta parentMeta)   // feels far from perfect
         {
-            // this goes 1 level deeper than we need. it will become useful later, when ValueRanges will be attached
-            return type.IsCompact ()
-                       ? new RecursiveMap<bool> (availableSheets.Contains(info.Sheet), info.Sheet.CreateDimensionInfo (type))
-                       : new RecursiveMap<Type> (type.GetMappedFields ().Select (field => UnwrapFieldTypes(field, info.Sheet)), info)
-                          .Cast (availableSheets.MapSheetsHierarchy);
-        }
+            var map = new RecursiveMap<object> (field.GetValue (obj), parentMeta.CreateChildMeta (ReflectionUtility.GetEnumeratedTypes (field).ToArray ()));
 
-        static RecursiveMap<Type> UnwrapFieldTypes(FieldInfo field, string parentSheet)
-        {
-            var finalType = ReflectionUtility.GetEnumeratedTypes (field).Last ();
-            var map = new RecursiveMap<Type> (finalType, parentSheet.CreateDimensionInfo (finalType));
-
-            // todo - pass not evaluated enumerable? (to keep available sheets inside of MapperService)
+            for (int i = 1; i < map.Meta.Types.Count; i++)
+                map = map.Cast (map.Meta.Types[i].ExpandCollection);
             return map;
         }
 
-
-        public static RecursiveMap<string> AssembleMap(this RecursiveMap<bool> sheetsHierarchy, IEnumerable<RecursiveMap<string>> values)
-        {
-            // from ugly hierarchy and pieces of map restore the full map (in correct order!)
-            throw new NotImplementedException ();
-        }
-
-        public static DimensionInfo CreateDimensionInfo(this string parentSheet, Type type,  params int[] indices)
-        {
-            var mapRegionAttribute = type.GetCustomAttribute<MappedClassAttribute> ();
-            return new DimensionInfo (indices.Length > 0
-                                          ? (ContentType)(3 + indices.Length & 1)
-                                          : mapRegionAttribute is null
-                                              ? ContentType.Value
-                                              : mapRegionAttribute.IsCompact
-                                                  ? ContentType.Object
-                                                  : ContentType.Sheet,
-                                      ValueRangeUtility.GetFullSheetName(parentSheet, mapRegionAttribute?.SheetName ?? string.Empty),
-                                      indices);
-        }
-
-        static RecursiveMap<object> MapFieldValue(FieldInfo field, object obj, string parentSheet)
-        {
-            var numeratedTypes = ReflectionUtility.GetEnumeratedTypes (field).ToArray ();
-            var map = new RecursiveMap<object> (field.GetValue (obj), parentSheet.CreateDimensionInfo (numeratedTypes[0]));
-
-            for (int i = 1; i < numeratedTypes.Length; i++)
-                map = map.Cast (numeratedTypes[i].ExpandCollection);
-            return map;
-        }
-
-        static RecursiveMap<object> ExpandCollection(this Type type, object obj, DimensionInfo info)
+        static RecursiveMap<object> ExpandCollection(this Type type, object obj, Meta meta)
         {
             var elements = (IEnumerable<object>)ExpandMethodInfo.MakeGenericMethod (type)
                                                                 .Invoke (null, new[] {obj});
-            var map = elements.Select ((e, i) => new RecursiveMap<object> (e, info.Sheet.CreateDimensionInfo (type, info.Indices.Append (i).ToArray ())));
-            return new RecursiveMap<object> (map, info);
+            var map = elements.Select ((e, i) => new RecursiveMap<object> (e, new Meta(meta, i + 1)));
+            return new RecursiveMap<object> (map, meta);
         }
 
-        static string SerializeValue<T>(T target) => target switch
-                                                     {
-                                                         int i    => i.ToString (),
-                                                         bool b   => b ? "true" : "false",
-                                                         string s => s,
-                                                         float f  => f.ToString ("0.000"),
-                                                         null     => string.Empty,
-                                                         _        => target.ToString (),
-                                                     };
+#endregion
+
+        public static RecursiveMap<bool> MapTypeHierarchyRecursive(this Predicate<RecursiveMap<bool>> condition, bool isCompactType, Meta meta)
+        {
+            return isCompactType
+                       ? meta.FrontType.MapTypeFields (meta, field => UnwrapFieldTypes (field, meta))
+                             .Cast (condition.FillIndicesRecursive)
+                             .Cast (condition.MapTypeHierarchyRecursive)
+                       : new RecursiveMap<bool> (false, meta);
+        }
+
+        static RecursiveMap<bool> UnwrapFieldTypes(FieldInfo field, Meta parentMeta) =>
+            new RecursiveMap<bool> (field.FieldType.IsCompact(),
+                                    parentMeta.CreateChildMeta (ReflectionUtility.GetEnumeratedTypes (field).ToArray ()));
+
+        static RecursiveMap<bool> FillIndicesRecursive(this Predicate<RecursiveMap<bool>> condition, bool value, Meta meta)
+        {
+            return meta.IsObject
+                       ? new RecursiveMap<bool> (value, meta)
+                       : new RecursiveMap<bool> (Helpers.SpawnWhile (condition, i => new RecursiveMap<bool> (true, new Meta (meta, i))), meta)
+                          .Cast (condition.FillIndicesRecursive);
+        }
 
         // used via Reflection
         static IEnumerable<object> ExpandCollection<T>(object value) => (value is IEnumerable<T> collection)

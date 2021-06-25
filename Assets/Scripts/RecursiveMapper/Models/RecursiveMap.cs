@@ -1,45 +1,30 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace RecursiveMapper
 {
-    class RecursiveMap<T> : Either<T, IEnumerable<RecursiveMap<T>>>, IEnumerable<T>
+    class RecursiveMap<T> : Either<T, IEnumerable<RecursiveMap<T>>>
     {
-        public readonly DimensionInfo DimensionInfo;
+        public readonly Meta Meta;
 
-        private IEnumerable<T> Elements => IsLeft
-                                               ? new[] {Left}
-                                               : Right.SelectMany (element => element.Elements);
-
-        public RecursiveMap(IEnumerable<RecursiveMap<T>> value, DimensionInfo info)
+        public RecursiveMap(IEnumerable<RecursiveMap<T>> value, Meta meta)
             : base (value)
         {
-            DimensionInfo = info;
+            Meta = meta;
         }
 
-        public RecursiveMap(T value, DimensionInfo info)
+        public RecursiveMap(T value, Meta meta)
             : base (value)
         {
-            DimensionInfo = info;
+            Meta = meta;
         }
 
-        public RecursiveMap<TResult> Cast<TResult>(Func<T, TResult> func)
+        public RecursiveMap<TResult> Cast<TResult>(Func<T, Meta, RecursiveMap<TResult>> func)
         {
             return IsLeft
-                       ? new RecursiveMap<TResult> (func.Invoke (Left), DimensionInfo.Copy())
-                       : new RecursiveMap<TResult> (Right.Select (element => element.Cast (func)), DimensionInfo.Copy());
+                       ? func.Invoke (Left, this.Meta)
+                       : new RecursiveMap<TResult> (Right.Select (element => element.Cast (func)), this.Meta);
         }
-
-        public RecursiveMap<TResult> Cast<TResult>(Func<T, DimensionInfo, RecursiveMap<TResult>> func)
-        {
-            return IsLeft
-                       ? func.Invoke (Left, this.DimensionInfo)
-                       : new RecursiveMap<TResult> (Right.Select (element => element.Cast (func)), DimensionInfo.Copy());
-        }
-
-        public IEnumerator<T> GetEnumerator() => Elements.GetEnumerator ();
-        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator ();
     }
 }

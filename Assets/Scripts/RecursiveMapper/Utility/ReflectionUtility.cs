@@ -6,19 +6,12 @@ using System.Reflection;
 namespace RecursiveMapper.Utility
 {
     // Operations with Type and Attributes
-    static class ReflectionUtility
+    static class ReflectionUtility            // todo - moves to service?
     {
         public static bool IsMapped(this Type type) => type.GetCustomAttribute<MappedClassAttribute> () != null;
         public static bool IsCompact(this Type type) => !type.IsMapped () || type.GetMappedAttribute ().IsCompact;
         public static MappedAttribute GetMappedAttribute(this FieldInfo info) => info.GetCustomAttribute<MappedAttribute> ();
         public static MappedClassAttribute GetMappedAttribute(this Type type) => type.GetCustomAttribute<MappedClassAttribute> ();
-
-        public static IEnumerable<FieldInfo> GetFieldsWithMappedAttribute(Type type)
-        {
-            return IsMapped (type)
-                       ? type.GetFields ().Where (info => GetMappedAttribute (info) != null)
-                       : throw new InvalidOperationException ($"Type {type.Name} doesn't have a {nameof(MappedClassAttribute)}.");
-        }
 
         public static IEnumerable<Type> GetEnumeratedTypes(FieldInfo info)
         {
@@ -32,5 +25,7 @@ namespace RecursiveMapper.Utility
                 yield return numeratedType;
             }
         }
+
+        //  todo - assembling stuff methods
     }
 }

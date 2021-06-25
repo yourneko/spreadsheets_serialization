@@ -25,13 +25,18 @@ namespace RecursiveMapper
         public async Task<Either<T, Exception>> ReadAsync<T>(string spreadsheet, string sheet = "")
         {
             var availableSheets = await Service.GetSheetsListAsync (spreadsheet);
-            var hierarchy = availableSheets.MapSheetsHierarchy (typeof(T), sheet.CreateDimensionInfo (typeof(T)));
 
-            if (!hierarchy.All(match => match))               // todo - replace with better check
-                return new Either<T, Exception> (new Exception ("Spreadsheet doesn't contain enough data to assemble the requested object."));
+            // its <bool> cuz i got no idea what to write there :c
+            Predicate<RecursiveMap<bool>> condition = availableSheets.SpawnCondition;
+            var hierarchy = condition.MapTypeHierarchyRecursive (true, new Meta (sheet, typeof(T)));
 
-            var valueRanges = await Service.GetValueRanges (spreadsheet, ListExistingSheets (hierarchy));
-            var result = UnmapObject<T> (hierarchy.AssembleMap (valueRanges.Select (range => range.ToMap ())));
+            //if (!hierarchy.All(match => match))               // todo - replace with better check
+            //   return new Either<T, Exception> (new Exception ("Spreadsheet doesn't contain enough data to assemble the requested object."));
+
+            var valueRanges = await Service.GetValueRanges (spreadsheet, ListExistingSheets (hierarchy).ToArray());
+            var dictionaryValues = valueRanges.ToDictionary (range => range.Range.Split ('!')[0].Trim ('\''),
+                                                             range => new ValueRangeReader (range).Read ());
+            var result = UnmapObject<T> (dictionaryValues.JoinRecursive(hierarchy.Right, hierarchy.Meta));
             return new Either<T, Exception>(result);
         }
 
@@ -44,7 +49,7 @@ namespace RecursiveMapper
         /// <typeparam name="T">Type of serialized object.</typeparam>
         public Task<bool> WriteAsync<T>(T obj, string spreadsheet, string sheet = "")
         {
-            var map = MappingUtility.Serialize (obj, sheet.CreateDimensionInfo (typeof(T)));
+            var map = MappingUtility.SerializeRecursive (obj, new Meta (sheet, typeof(T)));
             return Service.WriteRangesAsync (spreadsheet,  AssembleValueRanges (map).ToList ());
         }
 
@@ -66,17 +71,27 @@ namespace RecursiveMapper
 
         static IEnumerable<ValueRange> AssembleValueRanges(RecursiveMap<string> data)
         {
-            var ranges = data.Right.Where (e => !e.DimensionInfo.IsCompact)
+            var ranges = data.Right.Where (e => e.Meta.ContentType == ContentType.Sheet)
                              .SelectMany (AssembleValueRanges);
-            return (data.CreateValueRange (FirstCellOfValueRange, out var range))
-                       ? ranges.Append (range)
-                       : ranges;
+            if (data.Right.Any (element => element.Meta.ContentType != ContentType.Sheet))
+                ranges = ranges.Append (new ValueRangeBuilder (data).ToValueRange (FirstCellOfValueRange));
+            return ranges;
         }
 
-        static string[] ListExistingSheets(RecursiveMap<bool> sheetsHierarchy)
+        static IEnumerable<string> ListExistingSheets(RecursiveMap<bool> sheetsHierarchy)
         {
-            // from a built hierarchy, get the list of value ranges to GET from the spreadsheets
-            throw new NotImplementedException ();
+            bool shouldReturn = false;
+            foreach (var element in sheetsHierarchy.Right)
+            {
+                if (element.IsLeft)
+                    shouldReturn = true;
+                else
+                    foreach (var sheet in ListExistingSheets (element))
+                        yield return sheet;
+            }
+
+            if (shouldReturn)
+                yield return sheetsHierarchy.Meta.Sheet;
         }
 
         static T UnmapObject<T>(RecursiveMap<string> ranges)
