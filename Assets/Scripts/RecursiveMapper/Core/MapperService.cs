@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using Google.Apis.Services;
 using Google.Apis.Sheets.v4;
 using Google.Apis.Sheets.v4.Data;
-using RecursiveMapper.Utility;
 
 namespace RecursiveMapper
 {
@@ -25,7 +24,7 @@ namespace RecursiveMapper
         /// <param name="sheet">Specify the name of the sheet, if the spreadsheet contains multiple sheets of a type.</param>
         /// <typeparam name="T">Type of object to read from the spreadsheet data.</typeparam>
         /// <returns>Object of type T.</returns>
-        public async Task<Either<T, Exception>> ReadAsync<T>(string spreadsheet, string sheet = "")
+        public async Task<T> ReadAsync<T>(string spreadsheet, string sheet = "")
             where T : new()
         {
             var availableSheets = await service.GetSheetsListAsync (spreadsheet);
@@ -41,7 +40,7 @@ namespace RecursiveMapper
             var dictionaryValues = valueRanges.ToDictionary (range => range.Range.Split ('!')[0].Trim ('\''),
                                                              range => new ValueRangeReader (range).Read ());
             var result = (T)UnmapObjectRecursive (typeof(T), dictionaryValues.JoinRecursive(hierarchy.Right, hierarchy.Meta));
-            return new Either<T, Exception>(result);
+            return result;
         }
 
         /// <summary>
@@ -173,18 +172,16 @@ namespace RecursiveMapper
                                                 : (types[0].GetMappedAttribute () != null)
                                                     ? throw new Exception ("an attempt to deserialize a mapped type from a single string value")
                                                     : types[0].DeserializeValue (em.Current.Left)
-                                          : UnmapCollectionRecursive (types, em.Current));
+                                          : UnmapFieldRecursive (types, em.Current));
             }
             return result;
         }
 
-        object UnmapCollectionRecursive(Type[] types, RecursiveMap<string> map)
+        object UnmapFieldRecursive(Type[] types, RecursiveMap<string> map)
         {
             return types.Length == 1
                        ? UnmapObjectRecursive (types[0], map)
-                       : ReflectionUtility.CreateArray (types[0],
-                                                        map.Right.Select (element => UnmapCollectionRecursive (types.Skip (1).ToArray (), element)),
-                                                        types[1]);
+                       : ReflectionUtility.CreateArray (types, map.Right.Select (element => UnmapFieldRecursive (types.Skip (1).ToArray (), element)));
         }
     }
 }

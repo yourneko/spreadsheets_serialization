@@ -1,9 +1,7 @@
 {
     "name": "RecursiveMapper",
-    "references": [
-        "GUID:6012563347ec47589db15566d6690fa3",
-        "GUID:9237ef51b04a444796254ea5676d8e06"
-    ],
+    "rootNamespace": "RecursiveMapper",
+    "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
@@ -11,5 +9,6 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": []
+    "versionDefines": [],
+    "noEngineReferences": true
 }

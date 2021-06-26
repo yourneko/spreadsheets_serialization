@@ -1,4 +1,7 @@
-﻿using Mimimi.SpreadsheetsSerialization.Core;
+﻿using System;
+using Google.Apis.Auth.OAuth2;
+using Google.Apis.Services;
+using RecursiveMapper;
 using UnityEngine;
 
 namespace Example
@@ -12,39 +15,36 @@ namespace Example
 
         [SerializeField] TextAsset key = null;
 
-        private SerializationService service;
+        private MapperService service;
 
         private void Start()
         {
-            service = SerializationService.StartService (key.text);
+            var initializer = new BaseClientService.Initializer
+                              {
+                                  HttpClientInitializer = GoogleCredential.FromJson (key.text)
+                                                                          .CreateScoped ("https://spreadsheets.google.com/feeds", "https://docs.google.com/feeds"),
+                                  ApplicationName       = "SheetsSerialization",
+                                  GZipEnabled           = Application.isEditor || Application.platform != RuntimePlatform.Android
+                              };
+            service = new MapperService (initializer);
         }
 
-        public void WriteData() => Write (ref data);
-        public void WriteSheets() => Write (ref someSheetsData);
+        public void WriteData() => Write(data);
+        public void WriteSheets() => Write (someSheetsData);
 
-        public void ReadData() => Read ((ExampleData x) => target.data = x, false);
-        public void ReadSheets() => Read ((SuperclassData x) => target.someSheetsData = x, true);
+        public void ReadData() => Read<ExampleData> (x => target.data = x);
+        public void ReadSheets() => Read<SuperclassData> (x => target.someSheetsData = x);
 
-        private void Write<T>(ref T obj)
+        private async void Write<T>(T obj)
         {
-            if (ClassMapping.IsMappableType (typeof (T)))
-            {
-                CustomBatchUpdateRequest request = service.BatchUpdate (testSpreadsheetID);
-                request.Parse (ref obj);
-                request.Enqueue ();
-            }
-            else Debug.LogError ($"Writing cancelled. Type {typeof (T).Name} is not mappable.");
+            await service.WriteAsync (obj, testSpreadsheetID);
         }
 
-        private void Read<T>(System.Action<T> _writeResults, bool indexed)
+        private async void Read<T>(Action<T> callback)
+            where T : new()
         {
-            if (ClassMapping.IsMappableType (typeof (T)))
-            {
-                CustomBatchGetRequest rq = new CustomBatchGetRequest (testSpreadsheetID, indexed);
-                rq.Add (_writeResults);
-                rq.Enqueue ();
-            }
-            else Debug.LogError ($"Writing cancelled. Type {typeof (T).Name} is not mappable.");
+            var result = await service.ReadAsync<T> (testSpreadsheetID);
+            callback.Invoke (result);
         }
     }
 }

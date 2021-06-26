@@ -14,6 +14,9 @@ namespace RecursiveMapper
             SheetName = sheetName;
         }
 
-        public MappedClassAttribute() { }
+        public MappedClassAttribute()
+        {
+            IsCompact = true;
+        }
     }
 }

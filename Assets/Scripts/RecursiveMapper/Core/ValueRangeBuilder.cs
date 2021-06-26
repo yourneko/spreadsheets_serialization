@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using Google.Apis.Sheets.v4.Data;
 
-namespace RecursiveMapper.Utility
+namespace RecursiveMapper
 {
     struct ValueRangeBuilder
     {

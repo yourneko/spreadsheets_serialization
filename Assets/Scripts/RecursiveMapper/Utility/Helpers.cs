@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace RecursiveMapper.Utility
+namespace RecursiveMapper
 {
     // Misc stuff
     static class Helpers

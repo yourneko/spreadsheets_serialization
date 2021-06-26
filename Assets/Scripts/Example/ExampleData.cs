@@ -1,35 +1,32 @@
 ﻿using System;
 using System.Collections.Generic;
-using Mimimi.SpreadsheetsSerialization;
-using Mimimi.Tools.A1Notation;
+using RecursiveMapper;
 using UnityEngine;
 
 namespace Example
 {
-    [Serializable, Sheet ("ExampleSheet")]
+    [Serializable, MappedClass ("ExampleSheet", false)]
     public class ExampleData
     {
-        [Map (2, 1), Array (0, A1Direction.Row)]
+        [Mapped (5, 1)]
         [SerializeField] string[] ss1;
 
-        [Map (0, 2), Array (0, A1Direction.Row)]
+        [Mapped (3, 1)]
         [SerializeField] List<string> ss2;
 
-        [Map (3)]
+        [Mapped (2)]
         [SerializeField] StructData keyValueArray;
 
-        [Map (0)]
+        [Mapped (0)]
         [SerializeField] string s;
 
-        [Map (1)]
+        [Mapped (1)]
         [SerializeField] int i;
 
-        [Map (0, 1),
-         Array (0, A1Direction.Row),
-         Array (1, A1Direction.Column)]
+        [Mapped (4, 2)]
         private readonly int[][] intGrid = new int[][] { new[] { 1, 2, 3 }, new[] { 4, 5, 6, }, new[] { 7, 8, 9 } };
 
-        [Map (0, 3), Array (0, A1Direction.Column)]
+        [Mapped (6, 1)]
         [SerializeField] List<SubclassData> subList;
     }
 }

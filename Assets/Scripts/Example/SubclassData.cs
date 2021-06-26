@@ -1,20 +1,19 @@
 ﻿using System;
-using Mimimi.SpreadsheetsSerialization;
-using Mimimi.Tools.A1Notation;
+using RecursiveMapper;
 using UnityEngine;
 
 namespace Example
 {
-    [Serializable, Mimimi.SpreadsheetsSerialization.Range]
+    [Serializable, MappedClass]
     public class SubclassData
     {
-        [Map (0)]
+        [Mapped (0)]
         [SerializeField] string name;
 
-        [Map (1)]
+        [Mapped (1)]
         [SerializeField] int subvalue;
 
-        [Map (2), Array (0, A1Direction.Column)]
+        [Mapped (2, 1)]
         [SerializeField] StructData[] keyValueArray;
     }
 }

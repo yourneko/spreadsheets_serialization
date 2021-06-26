@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 
-namespace RecursiveMapper.Utility
+namespace RecursiveMapper
 {
     // Operations with Type and Attributes
     static class ReflectionUtility
@@ -30,10 +30,10 @@ namespace RecursiveMapper.Utility
             }
         }
 
-        public static object CreateArray(Type arrayType, IEnumerable<object> arrayContent, Type contentType)
+        public static object CreateArray(Type[] types, IEnumerable<object> arrayContent)
         {
-            var result = Activator.CreateInstance(arrayType);
-            var addMethod = ReflectionUtility.AddMethodInfo.MakeGenericMethod (contentType);
+            var result = Activator.CreateInstance(types[0]);
+            var addMethod = AddMethodInfo.MakeGenericMethod (types[1]);
             foreach (object o in arrayContent)
                 addMethod.Invoke (result, new[] {o});
             return result;

@@ -1,12 +1,12 @@
 ﻿using System;
-using Mimimi.SpreadsheetsSerialization;
+using RecursiveMapper;
 
 namespace Example
 {
-    [Serializable, Mimimi.SpreadsheetsSerialization.Range]
+    [Serializable, MappedClass]
     public class StructData
     {
-        [Map (0)] public string key;
-        [Map (1)] public string value;
+        [Mapped (0)] public string key;
+        [Mapped (1)] public string value;
     }
 }

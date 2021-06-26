@@ -1,9 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 
-namespace RecursiveMapper.Utility
+namespace RecursiveMapper
 {
     // Operations with RecursiveMap, Type & FieldInfo classes
     static class RecursiveMapUtility

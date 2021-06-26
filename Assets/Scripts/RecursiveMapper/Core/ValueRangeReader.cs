@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Google.Apis.Sheets.v4.Data;
 
-namespace RecursiveMapper.Utility
+namespace RecursiveMapper
 {
     struct ValueRangeReader  // i don't like you!
     {
@@ -23,12 +23,10 @@ namespace RecursiveMapper.Utility
         public IList<RecursiveMap<string>> Read()
         {
             using var e = ((string)range[0][0]).GetEnumerator ();
-            while (e.MoveNext() && Read(e.Current))
-                continue;
+            while (e.MoveNext() && Read(e.Current)) {}
             return result;
         }
 
-        // true if need to take current value
         bool Read(char c)
         {
             switch (c)

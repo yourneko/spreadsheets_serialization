@@ -1,17 +1,14 @@
 ﻿using System;
-using Mimimi.SpreadsheetsSerialization;
-using Mimimi.Tools.A1Notation;
+using RecursiveMapper;
 using UnityEngine;
 
 namespace Example
 {
-    [Serializable, SheetsGroup("Group {0}")]
+    [Serializable, MappedClass("Group {0}", false)]
     public class SuperclassData
     {
-        [Map (0, 1), Array (0, A1Direction.Column)]
-        [SerializeField] ExampleData[] data;
+        [SerializeField, Mapped(1, 1)] ExampleData[] data;
 
-        [Map (0)]
-        [SerializeField] string title;
+        [SerializeField, Mapped(0)] string title;
     }
 }

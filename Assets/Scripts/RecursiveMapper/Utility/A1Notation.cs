@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace RecursiveMapper.Utility
+namespace RecursiveMapper
 {
     static class A1Notation
 	{
