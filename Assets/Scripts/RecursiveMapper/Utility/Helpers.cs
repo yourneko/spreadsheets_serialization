@@ -4,9 +4,9 @@ using System.Linq;
 
 namespace RecursiveMapper.Utility
 {
+    // Misc stuff
     static class Helpers
     {
-        // Sort of hardcoded stuff
         public static IEnumerable<T> SpawnWhile<T>(Predicate<T> condition, Func<int, T> produce)
         {
             int index = -1;
@@ -15,7 +15,7 @@ namespace RecursiveMapper.Utility
                 yield return result;
         }
 
-        public static bool SpawnCondition(this string[] sheets, RecursiveMap<bool> map) => map.IsLeft && sheets.Contains (map.Meta.Sheet)
+        public static bool HasRequiredSheets(this string[] sheets, RecursiveMap<bool> map) => map.IsLeft && sheets.Contains (map.Meta.Sheet)
                                                                                         || map.IsRight && map.Right.Any ();
 
         public static Meta CreateChildMeta(this Meta meta, Type[] types)
@@ -33,6 +33,11 @@ namespace RecursiveMapper.Utility
                                                          null     => string.Empty,
                                                          _        => target.ToString (),
                                                      };
+
+        public static object DeserializeValue(this Type type, string serialized) => type switch
+                                                                                    {
+                                                                                        _ => throw new NotImplementedException(),
+                                                                                    };
 
         public static RecursiveMap<string> JoinRecursive<T>(this IReadOnlyDictionary<string, IList<RecursiveMap<string>>> values,
                                                             IEnumerable<RecursiveMap<T>> right, Meta meta)

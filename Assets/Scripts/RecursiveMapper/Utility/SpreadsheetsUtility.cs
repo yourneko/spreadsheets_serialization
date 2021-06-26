@@ -10,11 +10,10 @@ namespace RecursiveMapper.Utility
     // Assembling and sending requests to Google Spreadsheets API
     static class SpreadsheetsUtility
     {
-#region Extension methods for SheetsService
-
         public static async Task<bool> WriteRangesAsync(this SheetsService service, string spreadsheet, IList<ValueRange> values)
         {
-            var hasRequiredSheets = await service.CreateSheetsAsync (spreadsheet, values.Select (GetSheetName).ToArray ());
+            var sheets = values.Select (range => range.Range.Split ('!')[0].Trim ('\''));
+            var hasRequiredSheets = await service.CreateSheetsAsync (spreadsheet, sheets.ToArray ());
             if (!hasRequiredSheets)
                 return false;
 
@@ -50,9 +49,6 @@ namespace RecursiveMapper.Utility
             return result.Replies.All(reply => reply.AddSheet.Properties != null);
         }
 
-#endregion
-#region Assembling requests
-
         static BatchUpdateSpreadsheetRequest CreateAddSheetsRequest(ICollection<string> sheetsToCreate) =>
             new BatchUpdateSpreadsheetRequest {Requests = sheetsToCreate.Select (CreateAddSheetRequest).ToList ()};
 
@@ -69,9 +65,5 @@ namespace RecursiveMapper.Utility
                                                                                                        Data = values,
                                                                                                        ValueInputOption = "USER_ENTERED",
                                                                                                    };
-
-#endregion
-
-        static string GetSheetName(ValueRange range) => range.Range.Split ('!')[0].Trim (new[] {'\'', '"'});
     }
 }

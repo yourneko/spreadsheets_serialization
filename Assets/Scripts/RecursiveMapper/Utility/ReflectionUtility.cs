@@ -6,10 +6,14 @@ using System.Reflection;
 namespace RecursiveMapper.Utility
 {
     // Operations with Type and Attributes
-    static class ReflectionUtility            // todo - moves to service?
+    static class ReflectionUtility
     {
-        public static bool IsMapped(this Type type) => type.GetCustomAttribute<MappedClassAttribute> () != null;
-        public static bool IsCompact(this Type type) => !type.IsMapped () || type.GetMappedAttribute ().IsCompact;
+        public static readonly MethodInfo ExpandMethodInfo = typeof(RecursiveMapUtility).GetMethod ("ExpandCollection",
+                                                                                                    BindingFlags.Static | BindingFlags.NonPublic);
+
+        private static readonly MethodInfo AddMethodInfo = typeof(ICollection<>).GetMethod ("Add",
+                                                                                            BindingFlags.Instance | BindingFlags.Public);
+
         public static MappedAttribute GetMappedAttribute(this FieldInfo info) => info.GetCustomAttribute<MappedAttribute> ();
         public static MappedClassAttribute GetMappedAttribute(this Type type) => type.GetCustomAttribute<MappedClassAttribute> ();
 
@@ -26,6 +30,13 @@ namespace RecursiveMapper.Utility
             }
         }
 
-        //  todo - assembling stuff methods
+        public static object CreateArray(Type arrayType, IEnumerable<object> arrayContent, Type contentType)
+        {
+            var result = Activator.CreateInstance(arrayType);
+            var addMethod = ReflectionUtility.AddMethodInfo.MakeGenericMethod (contentType);
+            foreach (object o in arrayContent)
+                addMethod.Invoke (result, new[] {o});
+            return result;
+        }
     }
 }
