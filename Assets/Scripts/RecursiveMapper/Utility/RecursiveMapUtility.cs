@@ -16,7 +16,7 @@ namespace RecursiveMapper
                 ListExistingSheetsRecursive (element, results);
         }
 
-        public static bool HasRequiredSheets(this string[] sheets, RecursiveMap<bool> map) => map.IsValue && sheets.Contains (map.Meta.Sheet)
+        public static bool HasRequiredSheets(this HashSet<string> sheets, RecursiveMap<bool> map) => map.IsValue && sheets.Contains (map.Meta.Sheet)
                                                                                            || map.IsCollection && map.Collection.Any ();
 
         public static RecursiveMap<string> JoinRecursive<T>(this IReadOnlyDictionary<string, IList<RecursiveMap<string>>> values,

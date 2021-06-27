@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -15,8 +16,8 @@ namespace RecursiveMapper
         internal const string FirstCellOfValueRange = "A2";
 
         private readonly SheetsService service;
-        private readonly Dictionary<int, IReadOnlyList<FieldInfo>> cachedFields = new Dictionary<int, IReadOnlyList<FieldInfo>> ();
-        private readonly Dictionary<int, Type[]> cachedArrays = new Dictionary<int, Type[]> ();  // todo - make it thread-safe
+        private readonly ConcurrentDictionary<int, IReadOnlyList<FieldInfo>> cachedFields = new ConcurrentDictionary<int, IReadOnlyList<FieldInfo>> ();
+        private readonly ConcurrentDictionary<int, Type[]> cachedArrays = new ConcurrentDictionary<int, Type[]> ();
 
         /// <summary>
         /// Read the data from a spreadsheet and deserialize it to object of type T.
@@ -29,17 +30,13 @@ namespace RecursiveMapper
             where T : new()
         {
             var availableSheets = await service.GetSheetsListAsync (spreadsheet);
-
-            Predicate<RecursiveMap<bool>> condition = availableSheets.HasRequiredSheets;
-            var hierarchy = MapTypeHierarchyRecursive (condition, true, new Meta (sheet, typeof(T)));
-
-            //if (!hierarchy.All(match => match))               // todo - replace with better check
-            //   return new Either<T, Exception> (new Exception ("Spreadsheet doesn't contain enough data to assemble the requested object."));
-
+            var hs = new HashSet<string> (availableSheets);
+            var hierarchy = MapTypeHierarchyRecursive (hs.HasRequiredSheets, true, new Meta (sheet, typeof(T)));
             var ranges = new List<string> ();
             hierarchy.ListExistingSheetsRecursive (ranges);
-            var valueRanges = await service.GetValueRanges (spreadsheet, ranges.ToArray());
+            if (!new HashSet<string> (ranges).IsSubsetOf (hs)) throw new Exception();
 
+            var valueRanges = await service.GetValueRanges (spreadsheet, ranges.ToArray());
             var dictionaryValues = valueRanges.ToDictionary (range => range.Range.Split ('!')[0].Trim ('\''),
                                                              range => new ValueRangeReader (range).Read ());
             var map = dictionaryValues.JoinRecursive (hierarchy.Collection, hierarchy.Meta);
@@ -170,7 +167,7 @@ namespace RecursiveMapper
                              .Where (info => info.GetMappedAttribute () != null)
                              .OrderBy (x => x.GetMappedAttribute ().Position)
                              .ToList ();
-            cachedFields.Add (hash, fields);
+            cachedFields.TryAdd (hash, fields);
             return fields;
         }
 
@@ -181,7 +178,7 @@ namespace RecursiveMapper
                 return result;
 
             var newArray = ReflectionUtility.GetEnumeratedTypes (field).ToArray();  // todo - maybe during the test check if they are related to each other
-            cachedArrays.Add (hash, newArray);
+            cachedArrays.TryAdd (hash, newArray);
             return newArray;
         }
     }
