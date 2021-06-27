@@ -10,6 +10,8 @@ namespace RecursiveMapper
     // Assembling and sending requests to Google Spreadsheets API
     static class SpreadsheetsUtility
     {
+        const int A1_LETTERS_COUNT = 26;
+
         public static async Task<bool> WriteRangesAsync(this SheetsService service, string spreadsheet, IList<ValueRange> values)
         {
             var sheets = values.Select (range => range.Range.Split ('!')[0].Trim ('\''));
@@ -65,5 +67,23 @@ namespace RecursiveMapper
                                                                                                        Data = values,
                                                                                                        ValueInputOption = "USER_ENTERED",
                                                                                                    };
+
+        // IMPORTANT! Indices 'x' and 'y' are counted from 0. The point (0,0) corresponds to A1 cell
+        public static (int x, int y) ReadA1(string a1) => (Evaluate (a1.Where (char.IsLetter).Select (char.ToUpperInvariant), '@', A1_LETTERS_COUNT),
+                                                           Evaluate (a1.Where (char.IsDigit), '0', 10));
+
+        public static string WriteA1(int x, int y) => new string(ToLetters (x).ToArray()) + (y + 1);
+
+        static IEnumerable<char> ToLetters(int number) => number < A1_LETTERS_COUNT
+                                                              ? new[]{(char)('A' + number)}
+                                                              : ToLetters (number / A1_LETTERS_COUNT - 1).Append ((char)('A' + number % A1_LETTERS_COUNT));
+
+        static int Evaluate(IEnumerable<char> digits, char zero, int @base)
+        {
+            int result = (int)digits.Reverse ().Select ((c, i) => (c - zero) * Math.Pow (@base, i)).Sum ();
+            return result > 0
+                       ? result - 1
+                       : 999; // In Google Spreadsheets notation, upper boundary of the range may be missing - it means 'up to a big number'
+        }
     }
 }

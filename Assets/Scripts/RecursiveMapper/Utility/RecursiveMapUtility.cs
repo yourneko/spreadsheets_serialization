@@ -7,28 +7,53 @@ namespace RecursiveMapper
     // Operations with RecursiveMap, Type & FieldInfo classes
     static class RecursiveMapUtility
     {
+        public static void ListExistingSheetsRecursive(this RecursiveMap<bool> sheetsHierarchy, ICollection<string> results)
+        {
+            var maps = sheetsHierarchy.Collection.ToArray ();
+            if (maps.Any(x => x.Value))
+                results.Add($"'{sheetsHierarchy.Meta.FullName}'!{MapperService.FirstCellOfValueRange}:");
+            foreach (var element in maps.Where(x => x.IsCollection))
+                ListExistingSheetsRecursive (element, results);
+        }
+
+        public static bool HasRequiredSheets(this string[] sheets, RecursiveMap<bool> map) => map.IsValue && sheets.Contains (map.Meta.Sheet)
+                                                                                           || map.IsCollection && map.Collection.Any ();
+
+        public static RecursiveMap<string> JoinRecursive<T>(this IReadOnlyDictionary<string, IList<RecursiveMap<string>>> values,
+            IEnumerable<RecursiveMap<T>> right, Meta meta)
+        {
+            var rightArray = right.ToArray ();
+            RecursiveMap<string>[] result = new RecursiveMap<string>[rightArray.Length];
+            var dictValues = rightArray.Any (map => map.IsValue)
+                                 ? values[meta.FullName]  // If the current Map should have its own ValueRange, looking for it in the dictionary
+                                 : null;
+
+            // IsValue elements are replaced by Maps from the dictionary, keeping their order. IsCollection elements are going recursive
+            int dictValuesIndex = -1;
+            for (int i = 0; i < rightArray.Length; i++)
+                result[i] = rightArray[i].IsValue
+                                ? dictValues?[++dictValuesIndex]
+                                : values.JoinRecursive (rightArray[i].Collection, rightArray[i].Meta);
+
+            return new RecursiveMap<string> (result, meta);
+        }
 
         public static RecursiveMap<bool> FillIndicesRecursive(this Predicate<RecursiveMap<bool>> condition, bool value, Meta meta)
         {
             return meta.IsObject
                        ? new RecursiveMap<bool> (value, meta)
-                       : new RecursiveMap<bool> (Helpers.SpawnWhile (condition, i => new RecursiveMap<bool> (true, new Meta (meta, i))), meta)
-                          .Cast (condition.FillIndicesRecursive);
+                       : meta.MakeMap (SpawnWhile (condition, i => new RecursiveMap<bool> (true, new Meta (meta, i))))
+                             .Cast (condition.FillIndicesRecursive);
         }
 
-        public static RecursiveMap<object> ExpandCollection(this Type type, object obj, Meta meta)
+        static IEnumerable<T> SpawnWhile<T>(Predicate<T> condition, Func<int, T> produce)
         {
-            return new RecursiveMap<object> (obj.AsCollection (type)
-                                                .Select ((e, i) => new RecursiveMap<object> (e, new Meta (meta, i + 1))),
-                                             meta);
+            int index = -1;
+            T result;
+            while (condition.Invoke (result = produce (++index)))
+                yield return result;
         }
 
-        static IEnumerable<object> AsCollection(this object obj, Type type) => (IEnumerable<object>)ReflectionUtility.ExpandMethodInfo.MakeGenericMethod (type)
-                                                                                                                     .Invoke (null, new[] {obj});
-
-        // used via Reflection
-        static IEnumerable<object> ExpandCollection<T>(object value) => (value is ICollection<T> collection)      // todo - maybe just ICollection ??
-                                                                            ? collection.Cast<object> ()
-                                                                            : throw new InvalidCastException ();
+        public static RecursiveMap<T> MakeMap<T>(this Meta meta, IEnumerable<RecursiveMap<T>> collection) => new RecursiveMap<T> (collection, meta);
     }
 }

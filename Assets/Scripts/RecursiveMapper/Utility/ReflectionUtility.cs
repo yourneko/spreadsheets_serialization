@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -8,9 +9,6 @@ namespace RecursiveMapper
     // Operations with Type and Attributes
     static class ReflectionUtility
     {
-        public static readonly MethodInfo ExpandMethodInfo = typeof(RecursiveMapUtility).GetMethod ("ExpandCollection",
-                                                                                                    BindingFlags.Static | BindingFlags.NonPublic);
-
         private static readonly MethodInfo AddMethodInfo = typeof(ICollection<>).GetMethod ("Add",
                                                                                             BindingFlags.Instance | BindingFlags.Public);
 
@@ -30,7 +28,7 @@ namespace RecursiveMapper
             }
         }
 
-        public static object CreateArray(Type[] types, IEnumerable<object> arrayContent)
+        public static object CreateCollection(this IEnumerable<object> arrayContent, Type[] types)
         {
             var result = Activator.CreateInstance(types[0]);
             var addMethod = AddMethodInfo.MakeGenericMethod (types[1]);

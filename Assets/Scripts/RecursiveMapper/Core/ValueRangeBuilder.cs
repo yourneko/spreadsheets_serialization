@@ -8,79 +8,74 @@ namespace RecursiveMapper
 {
     struct ValueRangeBuilder
     {
-        private readonly IList<IList<object>> data;
+        private readonly RecursiveMap<string> reference;
         private readonly StringBuilder sb;
-        private readonly string sheetName;
 
         public ValueRangeBuilder(RecursiveMap<string> content)
         {
-            data = null;
-            sb   = new StringBuilder ();
-            sheetName = content.Meta.Sheet;
-            data      = ArrangeRecursive (content);
-            data.Insert (0, new List<object> {sb.ToString ()});
+            sb        = new StringBuilder ();
+            reference = content;
         }
 
         public ValueRange ToValueRange(string firstCell)
         {
-            (int x, int y) = A1Notation.Read (firstCell);
-            var a1LastCell = A1Notation.Write (x + data.Count, y + data.Max (column => column.Count));
+            var data = ArrangeRecursive (reference);
+            data.Insert (0, new List<object> {sb.ToString ()});
+
+            (int x, int y) = SpreadsheetsUtility.ReadA1 (firstCell);
+            var a1LastCell = SpreadsheetsUtility.WriteA1 (x + data.Count, y + data.Max (column => column.Count));
             return new ValueRange {
                                       MajorDimension = "COLUMN",
                                       Values         = data,
-                                      Range          = $"'{sheetName}'!{firstCell}:{a1LastCell}"
+                                      Range          = $"'{reference.Meta.Sheet}'!{firstCell}:{a1LastCell}"
                                   };
         }
 
         IList<IList<object>> ArrangeRecursive(RecursiveMap<string> values)
         {
-            if (values.Meta.IsObject)
+            if (!values.Meta.IsObject)
             {
-                if ((values.Meta.Rank & 1) > 0) // for array, odd ranks are horizontal, even ranks are vertical
-                {
-                    sb.Append ('[');
-                    List<IList<object>> horizontalArray = values.Right.SelectMany (ArrangeRecursive).ToList ();
-                    sb.Append (']');
-                    return horizontalArray;
-                }
-
-                sb.Append ('<');
-                List<IList<object>> array = new List<IList<object>> ();
-                foreach (var part in values.Right.Select (ArrangeRecursive))
-                {
-                    for (int i = array.Count; i < Math.Max (array.Count, part.Count); i++)
-                        array.Add (new List<object> ());
-
-                    int height = array.Any() ? array.Max (column => column.Count) : 0;
-                    foreach (var column in array)
-                        while (column.Count < height)
-                            column.Add (string.Empty);
-
-                    for (int i = 0; i < part.Count; i++)
-                        foreach (var value in part[i])
-                            array[i].Add (value);
-                }
-
-                sb.Append ('>');
-                return array;
+                bool horizontal = (values.Meta.Rank & 1) > 0;
+                sb.Append(horizontal ? '[' : '<');
+                var result = horizontal
+                                 ? values.Collection.SelectMany (ArrangeRecursive).ToList ()
+                                 : ListVerticalArrayRecursive (values);
+                sb.Append (horizontal ? ']' : '>');
+                return result;
             }
 
             switch (values.Meta.ContentType)
             {
                 case ContentType.Value:
                     sb.Append ('.');
-                    return new IList<object>[] {new object[] {values.Left}};
+                    return new IList<object>[] {new object[] {values.Value}};
                 case ContentType.Object:
                     sb.Append ('(');
-                    var objArranged = values.Right.SelectMany (ArrangeRecursive).ToList ();
+                    var objArranged = values.Collection.SelectMany (ArrangeRecursive).ToList ();
                     sb.Append (')');
                     return objArranged;
-                case ContentType.Sheet:
-                    sb.Append ('*');
-                    return new IList<object>[]{new List<object>()};
                 default:
-                    throw new InvalidOperationException ();
+                    return new IList<object>[]{new List<object>()};
             }
+        }
+
+        IList<IList<object>> ListVerticalArrayRecursive(RecursiveMap<string> values)
+        {
+            var elements = values.Collection.Select (ArrangeRecursive).ToList();
+            EqualizeLengths(elements, () => new List<object>());
+            foreach (var element in elements)
+                EqualizeLengths (element, () => new object ());
+            return Enumerable.Range (0, elements.Count)
+                             .Select (i => (IList<object>)elements.SelectMany (e => e[i]).ToList())
+                             .ToList ();
+        }
+
+        static void EqualizeLengths<T>(IList<IList<T>> lists, Func<T> get)
+        {
+            int height = lists.Max (e => e.Count);
+            foreach (var list in lists)
+                for (int i = 0; i < height - list.Count; i++)
+                    list.Add (get.Invoke());
         }
     }
 }

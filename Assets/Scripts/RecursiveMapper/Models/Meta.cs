@@ -54,12 +54,14 @@ namespace RecursiveMapper
                 indices[i] = reference.indices[i];
         }
 
-        public string GetChildName(string partialName)
+        public Meta CreateChildMeta(Type[] types)
         {
+            var mapRegionAttribute = types.Last().GetMappedAttribute ();
             var fullName = FullName;
-            return fullName.Contains ("{0}")
-                       ? string.Format (fullName, partialName)
-                       : $"{fullName} {partialName}";
+            return new Meta (fullName.Contains ("{0}")
+                                 ? string.Format (fullName, mapRegionAttribute?.SheetName)
+                                 : $"{fullName} {mapRegionAttribute?.SheetName}",
+                             types);
         }
     }
 }
