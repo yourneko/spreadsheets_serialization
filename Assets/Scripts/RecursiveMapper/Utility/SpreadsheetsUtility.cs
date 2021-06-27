@@ -72,7 +72,7 @@ namespace RecursiveMapper
         public static (int x, int y) ReadA1(string a1) => (Evaluate (a1.Where (char.IsLetter).Select (char.ToUpperInvariant), '@', A1_LETTERS_COUNT),
                                                            Evaluate (a1.Where (char.IsDigit), '0', 10));
 
-        public static string WriteA1(int x, int y) => new string(ToLetters (x).ToArray()) + (y + 1);
+        public static string WriteA1(int x, int y) => new string(ToLetters (x).ToArray()) + ++y;
 
         static IEnumerable<char> ToLetters(int number) => number < A1_LETTERS_COUNT
                                                               ? new[]{(char)('A' + number)}

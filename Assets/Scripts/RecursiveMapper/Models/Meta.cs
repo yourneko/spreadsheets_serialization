@@ -11,11 +11,11 @@ namespace RecursiveMapper
         public readonly string Sheet;
         public readonly int Rank;
         public readonly ContentType ContentType;
-        public readonly IReadOnlyList<Type> Types;
 
+        private readonly IReadOnlyList<Type> types;
         private readonly int[] indices;
 
-        public Type FrontType => Types[indices.Length];
+        public Type FrontType => types[indices.Length];
         public bool IsObject => Rank == indices.Length;
         public string FullName => IsObject && (Rank > 0)
                                       ? $"{Sheet} {string.Join (" ", indices)}"
@@ -23,12 +23,12 @@ namespace RecursiveMapper
 
         public Meta(string dimensionName, params Type[] types)
         {
-            Types   = types.ToList ();
-            Sheet   = dimensionName;
-            indices = new int[Types.Count - 1];
-            Rank    = 0;
+            this.types = types.ToList ();
+            Sheet      = dimensionName;
+            indices    = new int[this.types.Count - 1];
+            Rank       = 0;
 
-            var mapRegionAttribute = Types.Last ().GetMappedAttribute ();
+            var mapRegionAttribute = this.types.Last ().GetMappedAttribute ();
             ContentType = mapRegionAttribute is null
                               ? ContentType.Value
                               : mapRegionAttribute.IsCompact
@@ -38,7 +38,7 @@ namespace RecursiveMapper
 
         public Meta(Meta reference, int addingIndex = 0)
         {
-            Types       = reference.Types;
+            types       = reference.types;
             Sheet       = reference.Sheet;
             Rank        = reference.Rank;
             ContentType = reference.ContentType;
@@ -56,11 +56,10 @@ namespace RecursiveMapper
 
         public Meta CreateChildMeta(Type[] types)
         {
-            var mapRegionAttribute = types.Last().GetMappedAttribute ();
             var fullName = FullName;
             return new Meta (fullName.Contains ("{0}")
-                                 ? string.Format (fullName, mapRegionAttribute?.SheetName)
-                                 : $"{fullName} {mapRegionAttribute?.SheetName}",
+                                 ? string.Format (fullName, types.Last().GetSheetName())
+                                 : $"{fullName} {types.Last().GetSheetName()}",
                              types);
         }
     }

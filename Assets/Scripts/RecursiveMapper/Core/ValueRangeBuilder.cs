@@ -17,18 +17,16 @@ namespace RecursiveMapper
             reference = content;
         }
 
-        public ValueRange ToValueRange(string firstCell)
+        public ValueRange ToValueRange(string firstCell)       // todo - clean up
         {
             var data = ArrangeRecursive (reference);
-            data.Insert (0, new List<object> {sb.ToString ()});
+            var final = new List<IList<object>> {new List<object> {sb.ToString ()}};
+            foreach (var e in data)
+                final.Add (e);
 
             (int x, int y) = SpreadsheetsUtility.ReadA1 (firstCell);
-            var a1LastCell = SpreadsheetsUtility.WriteA1 (x + data.Count, y + data.Max (column => column.Count));
-            return new ValueRange {
-                                      MajorDimension = "COLUMN",
-                                      Values         = data,
-                                      Range          = $"'{reference.Meta.Sheet}'!{firstCell}:{a1LastCell}"
-                                  };
+            var a1LastCell = SpreadsheetsUtility.WriteA1 (x + final.Count, y + final.Max (column => column.Count));
+            return new ValueRange {MajorDimension = "COLUMN", Values = final, Range = $"'{reference.Meta.Sheet}'!{firstCell}:{a1LastCell}"};
         }
 
         IList<IList<object>> ArrangeRecursive(RecursiveMap<string> values)

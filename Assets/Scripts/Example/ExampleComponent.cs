@@ -26,7 +26,7 @@ namespace Example
                                   ApplicationName       = "SheetsSerialization",
                                   GZipEnabled           = Application.isEditor || Application.platform != RuntimePlatform.Android
                               };
-            service = new MapperService (initializer);
+            service = new MapperService (initializer, Debug.Log);
         }
 
         public void WriteData() => Write(data);

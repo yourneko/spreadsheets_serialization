@@ -1,12 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 
 namespace RecursiveMapper
 {
     // Operations with RecursiveMap, Type & FieldInfo classes
     static class RecursiveMapUtility
     {
+        public static MappedAttribute GetMappedAttribute(this FieldInfo info) => info.GetCustomAttribute<MappedAttribute> ();
+        public static MappedClassAttribute GetMappedAttribute(this Type type) => type.GetCustomAttribute<MappedClassAttribute> ();
+        public static string GetSheetName(this Type type) => type.GetCustomAttribute<MappedClassAttribute> ()?.SheetName ?? string.Empty;
+
         public static void ListExistingSheetsRecursive(this RecursiveMap<bool> sheetsHierarchy, ICollection<string> results)
         {
             var maps = sheetsHierarchy.Collection.ToArray ();
