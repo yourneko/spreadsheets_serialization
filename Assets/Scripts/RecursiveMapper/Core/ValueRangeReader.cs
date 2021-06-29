@@ -4,84 +4,57 @@ using Google.Apis.Sheets.v4.Data;
 
 namespace RecursiveMapper
 {
-    struct ValueRangeReader  // i don't like you!
+    struct ValueRangeReader
     {
         private readonly IList<IList<object>> range;
-        private readonly Stack<ControlPoint> points;
-        private int row, column;
-        private IList<RecursiveMap<string>> result;
+        private readonly Stack<MapRegion> points;
+        private int x, y;
 
         public ValueRangeReader(ValueRange values)
         {
-            points = new Stack<ControlPoint> ();
+            points = new Stack<MapRegion> ();
             range  = values.Values;
-            row    = 0;
-            column = 1;
-            result = null;
+            x = 1;
+            y = 0;
         }
 
         public IList<RecursiveMap<string>> Read()
         {
+            points.Push (new MapRegion {Maps = new List<RecursiveMap<string>> ()});
             using var e = ((string)range[0][0]).GetEnumerator ();
-            while (e.MoveNext() && Read(e.Current)) {}
-            return result;
+            while (e.MoveNext ()) // todo - handle format changes here
+                Read (e.Current);
+            return points.Pop().Maps;
         }
 
-        bool Read(char c)
+        void Read(char c)
         {
+            MapRegion point = points.Peek ();
             switch (c)
             {
                 case '[':
                 case '(':
                 case '<':
-                    points.Push (new ControlPoint (row, column, c));
-                    return true;
+                    point = new MapRegion {X1 = x, Y1 = y, Maps = new List<RecursiveMap<string>> (), Vertical = c == '<'};
+                    points.Push (point);
+                    break;
                 case '.':
-                    points.Push (new ControlPoint (row, column, c));
-                    return MoveToNext (c);
+                    point.Maps.Add(new RecursiveMap<string>((string)range[x][y], Meta.Point));
+                    point.X2 = Math.Max (point.X2, x);
+                    point.Y2 = Math.Max (point.Y2, y);
+                    break;
                 case ']':
                 case ')':
                 case '>':
-                    return MoveToNext (c);
-                default:
-                    return true;
-            }// ignoring the Sheet marker
-        }
-
-        bool MoveToNext(char c)
-        {
-            var lastPoint = points.Pop ();
-            if (c - lastPoint.OpenChar < 0 || c - lastPoint.OpenChar > 2)
-                throw new Exception ();                                   // todo - for debug purposes
-
-            row    = c == '>' ? row + 1 : lastPoint.Row;
-            column = c == '>' ? lastPoint.Column : column + 1;
-
-            if (points.Count > 0)
-            {
-                points.Peek ().maps.Add (c == '.'
-                                             ? new RecursiveMap<string> ((string)range[row][column], Meta.Point)
-                                             : new RecursiveMap<string> (lastPoint.maps, null));
-                return true;
+                    var closedPoint = points.Pop ();
+                    point.Maps.Add(new RecursiveMap<string> (closedPoint.Maps, null));
+                    point.X2 = Math.Max (point.X2, closedPoint.X2);
+                    point.Y2 = Math.Max (point.Y2, closedPoint.Y2);
+                    break;
+                default: return;
             }
-
-            result = lastPoint.maps;
-            return false;
-        }
-
-        private readonly struct ControlPoint
-        {
-            public readonly int Row, Column;
-            public readonly char OpenChar;
-            public readonly IList<RecursiveMap<string>> maps;
-
-            public ControlPoint(int r, int c, char ch)
-            {
-                Row      = r;
-                Column   = c;
-                OpenChar = ch;
-                maps     = new List<RecursiveMap<string>> ();
-            }
+            x = point.Vertical ? point.X1 : point.X2 + 1;
+            y = point.Vertical ? point.Y2 + 1 : point.Y1;
         }
     }
 }

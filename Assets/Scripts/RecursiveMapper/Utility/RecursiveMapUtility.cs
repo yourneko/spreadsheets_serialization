@@ -10,6 +10,7 @@ namespace RecursiveMapper
     {
         public static MappedAttribute GetMappedAttribute(this FieldInfo info) => info.GetCustomAttribute<MappedAttribute> ();
         public static MappedClassAttribute GetMappedAttribute(this Type type) => type.GetCustomAttribute<MappedClassAttribute> ();
+        public static bool IsMapped(this object obj) => obj.GetType ().GetCustomAttribute<MappedClassAttribute> () != null;
         public static string GetSheetName(this Type type) => type.GetCustomAttribute<MappedClassAttribute> ()?.SheetName ?? string.Empty;
 
         public static void ListExistingSheetsRecursive(this RecursiveMap<bool> sheetsHierarchy, ICollection<string> results)
@@ -45,7 +46,7 @@ namespace RecursiveMapper
 
         public static RecursiveMap<bool> FillIndicesRecursive(this Predicate<RecursiveMap<bool>> condition, bool value, Meta meta)
         {
-            return meta.IsObject
+            return meta.IsSingleObject
                        ? new RecursiveMap<bool> (value, meta)
                        : meta.MakeMap (SpawnWhile (condition, i => new RecursiveMap<bool> (true, new Meta (meta, i))))
                              .Cast (condition.FillIndicesRecursive);
@@ -53,12 +54,17 @@ namespace RecursiveMapper
 
         static IEnumerable<T> SpawnWhile<T>(Predicate<T> condition, Func<int, T> produce)
         {
-            int index = -1;
+            int index = 0;
             T result;
             while (condition.Invoke (result = produce (++index)))
                 yield return result;
         }
 
         public static RecursiveMap<T> MakeMap<T>(this Meta meta, IEnumerable<RecursiveMap<T>> collection) => new RecursiveMap<T> (collection, meta);
+
+        // Used with Reflection
+        static IEnumerable<object> Unpack<T>(object collection) => collection is IEnumerable<T> enumerable
+                                                                       ? enumerable.Cast<object> ()
+                                                                       : throw new InvalidCastException();
     }
 }

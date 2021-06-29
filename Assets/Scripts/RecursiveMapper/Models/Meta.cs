@@ -16,8 +16,9 @@ namespace RecursiveMapper
         private readonly int[] indices;
 
         public Type FrontType => types[indices.Length];
-        public bool IsObject => Rank == indices.Length;
-        public string FullName => IsObject && (Rank > 0)
+        public Type UnpackType => IsSingleObject ? null : types[Rank + 1];
+        public bool IsSingleObject => Rank == indices.Length;
+        public string FullName => IsSingleObject && (Rank > 0)
                                       ? $"{Sheet} {string.Join (" ", indices)}"
                                       : Sheet;
 
@@ -40,18 +41,11 @@ namespace RecursiveMapper
         {
             types       = reference.types;
             Sheet       = reference.Sheet;
-            Rank        = reference.Rank;
             ContentType = reference.ContentType;
-
-            indices = new int[reference.indices.Length];
-            if (addingIndex > 0)
-            {
-                Rank          += 1;
-                indices[Rank] =  addingIndex;
-            }
-
-            for (int i = 0; i < Rank; i++)
-                indices[i] = reference.indices[i];
+            indices     = new int[reference.indices.Length];
+            Rank        = reference.Rank + addingIndex.CompareTo (0);
+            reference.indices.CopyTo (indices, 0);
+            indices[reference.Rank] = addingIndex;
         }
 
         public Meta CreateChildMeta(Type[] types)

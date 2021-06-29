@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Example
 {
-    [Serializable, MappedClass("Group {0}", false)]
+    [Serializable, MappedClass("Group {0}")]
     public class SuperclassData
     {
         [SerializeField, Mapped(1, 1)] ExampleData[] data;

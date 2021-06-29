@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using Google.Apis.Sheets.v4.Data;
 
 namespace RecursiveMapper
@@ -9,71 +8,61 @@ namespace RecursiveMapper
     struct ValueRangeBuilder
     {
         private readonly RecursiveMap<string> reference;
-        private readonly StringBuilder sb;
+        private readonly System.Text.StringBuilder sb;
+        private readonly List<List<object>> output;
+        private int x, y;
 
         public ValueRangeBuilder(RecursiveMap<string> content)
         {
-            sb        = new StringBuilder ();
+            sb        = new System.Text.StringBuilder ();
             reference = content;
+            output    = new List<List<object>> {new List<object> ()};
+            x         = 1;
+            y         = 0;
         }
 
-        public ValueRange ToValueRange(string firstCell)       // todo - clean up
+        public ValueRange ToValueRange(string firstCell)
         {
-            var data = ArrangeRecursive (reference);
-            var final = new List<IList<object>> {new List<object> {sb.ToString ()}};
-            foreach (var e in data)
-                final.Add (e);
-
-            (int x, int y) = SpreadsheetsUtility.ReadA1 (firstCell);
-            var a1LastCell = SpreadsheetsUtility.WriteA1 (x + final.Count, y + final.Max (column => column.Count));
-            return new ValueRange {MajorDimension = "COLUMN", Values = final, Range = $"'{reference.Meta.Sheet}'!{firstCell}:{a1LastCell}"};
+            (int x1, int y1) = SpreadsheetsUtility.ReadA1 (firstCell);
+            var p = ProcessMapRecursive (reference);
+            output[0].Add(sb.ToString ());
+            return new ValueRange {
+                                      MajorDimension = "COLUMNS",
+                                      Values         = output.Cast<IList<object>> ().ToList (),
+                                      Range          = $"'{reference.Meta.FullName}'!{firstCell}:{SpreadsheetsUtility.WriteA1 (x1 + p.X2, y1 + p.Y2)}",
+                                  };
         }
 
-        IList<IList<object>> ArrangeRecursive(RecursiveMap<string> values)
+        MapRegion ProcessMapRecursive(RecursiveMap<string> map)
         {
-            if (!values.Meta.IsObject)
+            if (map.IsValue)
             {
-                bool horizontal = (values.Meta.Rank & 1) > 0;
-                sb.Append(horizontal ? '[' : '<');
-                var result = horizontal
-                                 ? values.Collection.SelectMany (ArrangeRecursive).ToList ()
-                                 : ListVerticalArrayRecursive (values);
-                sb.Append (horizontal ? ']' : '>');
-                return result;
+                EnsureCellIsReachable ();
+                output[x].Add (map.Value);
+                sb.Append ('.');
+                return new MapRegion {X1 = x, Y1 = y};
             }
 
-            switch (values.Meta.ContentType)
+            var point = new MapRegion {X1 = x, Y1 = y, Vertical = ((map.Meta.Rank & 1) == 0)};
+            sb.Append (map.Meta.IsSingleObject ? '(' : point.Vertical ? '<' : '[');
+
+            foreach (var pResult in map.Collection.Select(ProcessMapRecursive))
             {
-                case ContentType.Value:
-                    sb.Append ('.');
-                    return new IList<object>[] {new object[] {values.Value}};
-                case ContentType.Object:
-                    sb.Append ('(');
-                    var objArranged = values.Collection.SelectMany (ArrangeRecursive).ToList ();
-                    sb.Append (')');
-                    return objArranged;
-                default:
-                    return new IList<object>[]{new List<object>()};
+                point.X2 = Math.Max (point.X2, pResult.X2);
+                point.Y2 = Math.Max (point.Y2, pResult.Y2);
+                x        = point.Vertical ? point.X1 : point.X2 + 1;
+                y        = point.Vertical ? point.Y2 + 1 : point.Y1;
             }
+            sb.Append (map.Meta.IsSingleObject ? ')' : point.Vertical ? '>' : ']');
+            return point;
         }
 
-        IList<IList<object>> ListVerticalArrayRecursive(RecursiveMap<string> values)
+        void EnsureCellIsReachable()
         {
-            var elements = values.Collection.Select (ArrangeRecursive).ToList();
-            EqualizeLengths(elements, () => new List<object>());
-            foreach (var element in elements)
-                EqualizeLengths (element, () => new object ());
-            return Enumerable.Range (0, elements.Count)
-                             .Select (i => (IList<object>)elements.SelectMany (e => e[i]).ToList())
-                             .ToList ();
-        }
-
-        static void EqualizeLengths<T>(IList<IList<T>> lists, Func<T> get)
-        {
-            int height = lists.Max (e => e.Count);
-            foreach (var list in lists)
-                for (int i = 0; i < height - list.Count; i++)
-                    list.Add (get.Invoke());
+            if (output.Count <= x)
+                output.AddRange(Enumerable.Repeat(new List<object> (), x + 1 - output.Count));
+            if (output[x].Count < y)
+                output[x].AddRange (Enumerable.Repeat<object> (null, y - output[x].Count));
         }
     }
 }

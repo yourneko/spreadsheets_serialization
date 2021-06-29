@@ -8,9 +8,9 @@ namespace RecursiveMapper
         internal readonly bool IsCompact;
         internal readonly string SheetName;
 
-        public MappedClassAttribute(string sheetName, bool isCompact)
+        public MappedClassAttribute(string sheetName)
         {
-            IsCompact = isCompact;
+            IsCompact = false;
             SheetName = sheetName;
         }
 

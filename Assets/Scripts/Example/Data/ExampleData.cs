@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace Example
 {
-    [Serializable, MappedClass ("ExampleSheet", false)]
+    [Serializable, MappedClass ("ExampleSheet")]
     public class ExampleData
     {
         [Mapped (5, 1)]

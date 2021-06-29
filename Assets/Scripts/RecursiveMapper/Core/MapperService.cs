@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,10 +14,12 @@ namespace RecursiveMapper
     {
         internal const string FirstCellOfValueRange = "A2";
         readonly MethodInfo addMethodInfo = typeof(ICollection<>).GetMethod ("Add", BindingFlags.Instance | BindingFlags.Public);
+        readonly MethodInfo unpackMethod = typeof(RecursiveMapUtility).GetMethod ("Unpack", BindingFlags.Static | BindingFlags.NonPublic);
 
         private readonly SheetsService service;
         private readonly ConcurrentDictionary<int, IReadOnlyList<FieldInfo>> cachedFields = new ConcurrentDictionary<int, IReadOnlyList<FieldInfo>> ();
         private readonly ConcurrentDictionary<int, Type[]> cachedArrays = new ConcurrentDictionary<int, Type[]> ();
+        private readonly ConcurrentDictionary<int, MethodInfo> cachedUnpackMethods = new ConcurrentDictionary<int, MethodInfo> ();
         private readonly Action<string> logAction;
 
         /// <summary>
@@ -59,10 +60,9 @@ namespace RecursiveMapper
         /// <typeparam name="T">Type of serialized object.</typeparam>
         public Task<bool> WriteAsync<T>(T obj, string spreadsheet, string sheet = "")
         {
-            var values = ToValueRangesRecursive (SerializeRecursive (obj, CreateInitialMeta<T>(sheet))).ToList ();
-            Log ("ranges created:");
-            Log (string.Join (Environment.NewLine, values.Select (x => x.Range)));
-            return service.WriteRangesAsync (spreadsheet, values);
+            var valueRangeList = new List<ValueRange> ();
+            ListRangesRecursive (SerializeRecursive (obj, CreateInitialMeta<T> (sheet)), valueRangeList);
+            return service.WriteRangesAsync (spreadsheet, valueRangeList);
         }
 
         /// <summary>
@@ -75,7 +75,6 @@ namespace RecursiveMapper
             service = new SheetsService (initializer
                                       ?? throw new ArgumentException ("SheetsService can't be null"));
             logAction = log;
-            Log ("mapper started");
         }
 
         public void Dispose()
@@ -87,35 +86,28 @@ namespace RecursiveMapper
 
         static Meta CreateInitialMeta<T>(string input) => new Meta (input.Contains ("{0}")
                                                                         ? string.Format (input, typeof(T).GetSheetName ())
-                                                                        : input + typeof(T).GetSheetName (), typeof(T));
+                                                                        : input + typeof(T).GetSheetName (),
+                                                                    typeof(T));
 
         // creating value ranges from the given object (writing)
         RecursiveMap<string> SerializeRecursive(object obj, Meta meta)
         {
-            var type = obj.GetType ();
-            return type.GetMappedAttribute () != null
-                       ? meta.MakeMap (GetFields (type).Select (field => new RecursiveMap<object> (field.GetValue (obj),
-                                                                                                         meta.CreateChildMeta (GetArrayTypes (field)))))
-                             .Cast (ExpandCollectionRecursive)
-                             .Cast (SerializeRecursive)
-                       : new RecursiveMap<string> (SerializationUtility.SerializeValue (obj), Meta.Point);
+            return meta.IsSingleObject
+                       ? obj.IsMapped ()
+                             ? meta.MakeMap (GetFields (obj.GetType ()).Select (field => MapField (obj, meta, field)))
+                                   .Cast (SerializeRecursive)
+                             : new RecursiveMap<string> (SerializationUtility.SerializeValue (obj), Meta.Point)
+                       : UnpackCollection (obj, meta).Cast (SerializeRecursive);
         }
 
-        static RecursiveMap<object> ExpandCollectionRecursive(object obj, Meta meta)
-        {
-            return !meta.IsObject &&obj is ICollection collection
-                       ? meta.MakeMap (collection.Cast<object> ().Select ((element, index) => new RecursiveMap<object> (element, new Meta (meta, index))))
-                             .Cast(ExpandCollectionRecursive)
-                       : new RecursiveMap<object> (obj, meta);
-        }
+        RecursiveMap<object> MapField(object o, Meta meta, FieldInfo f) => new RecursiveMap<object> (f.GetValue (o), meta.CreateChildMeta (GetArrayTypes (f)));
 
-        static IEnumerable<ValueRange> ToValueRangesRecursive(RecursiveMap<string> data)
+        static void ListRangesRecursive(RecursiveMap<string> data, List<ValueRange> list)
         {
-            var ranges = data.Collection.Where (e => e.Meta.ContentType == ContentType.Sheet)
-                             .SelectMany (ToValueRangesRecursive);
+            foreach (var map in data.Collection.Where (e => e.Meta.ContentType == ContentType.Sheet))
+                ListRangesRecursive (map, list);
             if (data.Collection.Any (element => element.Meta.ContentType != ContentType.Sheet))
-                ranges = ranges.Append (new ValueRangeBuilder (data).ToValueRange (FirstCellOfValueRange));
-            return ranges;
+                list.Add (new ValueRangeBuilder (data).ToValueRange (FirstCellOfValueRange));
         }
 
         // preparing a map of the requested type (reading)
@@ -175,13 +167,11 @@ namespace RecursiveMapper
             if (cachedFields.TryGetValue (hash, out var result))
                 return result;
 
-            var fields = type.GetFields (BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance)
+            var fields = type.GetFields (BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                              .Where (info => info.GetMappedAttribute () != null)
                              .OrderBy (x => x.GetMappedAttribute ().Position)
                              .ToList ();
             cachedFields.TryAdd (hash, fields);
-            Log ($"mapping fields of class {type.Name}");
-            Log (string.Join (Environment.NewLine, fields.Select (f => $"{f.Name} : type {f.FieldType.Name}")));
             return fields;
         }
 
@@ -191,14 +181,26 @@ namespace RecursiveMapper
             if (cachedArrays.TryGetValue (hash, out var result))
                 return result;
 
-            var array = new Type[field.GetMappedAttribute ().DimensionCount];
+            var array = new Type[field.GetMappedAttribute ().DimensionCount + 1];
             array[0] = field.FieldType;
             for (int i = 1; i < array.Length; i++)                        // todo - look specifically for IEnumerable<>
                 array[i] = array[i - 1].GetTypeInfo ().GetInterfaces ().FirstOrDefault (x => x.IsGenericType)?.GetGenericArguments ()[0];
 
             cachedArrays.TryAdd (hash, array);
-            Log (string.Join (" > ", array.Select (f => f.Name)));
             return array;
+        }
+
+        RecursiveMap<object> UnpackCollection(object collection, Meta meta)
+        {
+            int hash = meta.UnpackType.GetHashCode ();
+            if (!cachedUnpackMethods.TryGetValue (hash, out MethodInfo method))
+            {
+                method = unpackMethod.MakeGenericMethod (meta.UnpackType);
+                cachedUnpackMethods.TryAdd (hash, method);
+            }
+
+            var elements = (IEnumerable<object>)method.Invoke (null, new[] {collection});
+            return new RecursiveMap<object> (elements.Select ((e, i) => new RecursiveMap<object> (e, new Meta (meta, i+1))), meta);
         }
     }
 }
