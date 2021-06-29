@@ -40,16 +40,17 @@ namespace RecursiveMapper
                 EnsureCellIsReachable ();
                 output[x].Add (map.Value);
                 sb.Append ('.');
-                return new MapRegion {X1 = x, Y1 = y};
+                return new MapRegion {X2 = x, Y2 = y};
             }
 
-            var point = new MapRegion {X1 = x, Y1 = y, Vertical = ((map.Meta.Rank & 1) == 0)};
+            var point = new MapRegion {X1 = x, Y1 = y, Vertical = !map.Meta.IsSingleObject && ((map.Meta.Rank & 1) == 0)};
             sb.Append (map.Meta.IsSingleObject ? '(' : point.Vertical ? '<' : '[');
 
-            foreach (var pResult in map.Collection.Select(ProcessMapRecursive))
+            foreach (var element in map.Collection)
             {
-                point.X2 = Math.Max (point.X2, pResult.X2);
-                point.Y2 = Math.Max (point.Y2, pResult.Y2);
+                var resultRegion = ProcessMapRecursive (element);
+                point.X2 = Math.Max (point.X2, resultRegion.X2);
+                point.Y2 = Math.Max (point.Y2, resultRegion.Y2);
                 x        = point.Vertical ? point.X1 : point.X2 + 1;
                 y        = point.Vertical ? point.Y2 + 1 : point.Y1;
             }

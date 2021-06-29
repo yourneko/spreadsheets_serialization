@@ -14,7 +14,6 @@ namespace Example
         [SerializeField] SuperclassData someSheetsData = new SuperclassData ();
 
         [SerializeField] TextAsset key;
-        [SerializeField] private EasyData ezData; // todo - remove
 
         private MapperService service;
 
@@ -30,7 +29,7 @@ namespace Example
                                          Debug.Log);
         }
 
-        public void WriteData() => Write(ezData);
+        public void WriteData() => Write(data);
         public void WriteSheets() => Write (someSheetsData);
 
         public void ReadData() => Read<ExampleData> (x => target.data = x);
