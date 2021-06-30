@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Reflection;
 
 namespace RecursiveMapper
 {
@@ -7,6 +9,8 @@ namespace RecursiveMapper
     {
         internal readonly bool IsCompact;
         internal readonly string SheetName;
+
+        internal IList<FieldInfo> Fields;
 
         public MappedClassAttribute(string sheetName)
         {

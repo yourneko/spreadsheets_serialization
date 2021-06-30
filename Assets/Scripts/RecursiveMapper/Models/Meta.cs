@@ -6,7 +6,7 @@ namespace RecursiveMapper
 {
     class Meta
     {
-        internal static readonly Meta Point = new Meta (string.Empty, typeof(string));
+        internal static Meta Point => new Meta (string.Empty, new[]{typeof(string)});
 
         public readonly string Sheet;
         public readonly int Rank;
@@ -22,7 +22,7 @@ namespace RecursiveMapper
                                       ? $"{Sheet} {string.Join (" ", indices)}"
                                       : Sheet;
 
-        public Meta(string dimensionName, params Type[] types)
+        public Meta(string dimensionName, IReadOnlyList<Type> types)
         {
             this.types = types.ToList ();
             Sheet      = dimensionName;
@@ -48,13 +48,6 @@ namespace RecursiveMapper
             indices[reference.Rank] = addingIndex;
         }
 
-        public Meta CreateChildMeta(Type[] types)
-        {
-            var fullName = FullName;
-            return new Meta (fullName.Contains ("{0}")
-                                 ? string.Format (fullName, types.Last().GetSheetName())
-                                 : $"{fullName} {types.Last().GetSheetName()}",
-                             types);
-        }
+        public Meta CreateChildMeta(MappedAttribute attribute) => new Meta (FullName.JoinSheetNames (types.Last ().GetSheetName ()), attribute.ArrayTypes);
     }
 }

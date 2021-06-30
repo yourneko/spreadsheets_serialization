@@ -4,10 +4,9 @@ using System.Globalization;
 
 namespace RecursiveMapper
 {
-    // To strings and back!
-    static class SerializationUtility
+    class DefaultValueSerializer : IValueSerializer
     {
-        private static readonly Dictionary<Type, Func<string, object>> @switch =
+        private static readonly Dictionary<Type, Func<string, object>> Switch =
             new Dictionary<Type, Func<string, object>>
             {
                 {typeof(string), s => s},
@@ -16,10 +15,11 @@ namespace RecursiveMapper
                 {typeof(double), value => double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double d) ? d : 0},
                 {typeof(bool), value => StringComparer.OrdinalIgnoreCase.Equals(value, "true")},
                 {typeof(DateTime), s => DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var a) ? a : DateTime.MinValue},
-
             };
 
-        public static string SerializeValue<T>(T target) => target switch
+        static string NotSupportedTypeMessage(Type type) => $"Value type {type.Name} is not supported by default value serializer.";
+
+        public string Serialize<T>(T target) => target switch
                                                             {
                                                                 int i      => i.ToString (),
                                                                 bool b     => b ? "true" : "false",
@@ -30,8 +30,8 @@ namespace RecursiveMapper
                                                                 _          => target.ToString (),
                                                             };
 
-        public static object DeserializeValue(this Type type, string value) => @switch.TryGetValue (type, out var func)
-                                                                                   ? func.Invoke (value)
-                                                                                   : throw new NotImplementedException ();
+        public object Deserialize(Type type, string value) => Switch.TryGetValue (type, out var func)
+                                                                              ? func.Invoke (value)
+                                                                              : throw new NotSupportedException (NotSupportedTypeMessage(type));
     }
 }

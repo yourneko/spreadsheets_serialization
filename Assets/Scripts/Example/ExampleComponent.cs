@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading.Tasks;
 using Google.Apis.Auth.OAuth2;
 using Google.Apis.Services;
 using RecursiveMapper;
@@ -25,42 +26,39 @@ namespace Example
                                              HttpClientInitializer = httpInit,
                                              ApplicationName       = "SheetsSerialization",
                                              GZipEnabled           = Application.isEditor || Application.platform != RuntimePlatform.Android
-                                         },
-                                         Debug.Log);
+                                         });
         }
 
-        public void WriteData() => Write(data);
-        public void WriteSheets() => Write (someSheetsData);
+        public void WriteData() => InvokeSafe (Write (data));
+        public void WriteSheets() => InvokeSafe (Write (someSheetsData));
 
-        public void ReadData() => Read<ExampleData> (x => target.data = x);
-        public void ReadSheets() => Read<SuperclassData> (x => target.someSheetsData = x);
+        public void ReadData() => InvokeSafe (Read<ExampleData> (x => target.data = x));
+        public void ReadSheets() => InvokeSafe (Read<SuperclassData> (x => target.someSheetsData = x));
 
-        private async void Write<T>(T obj)
+        private static async void InvokeSafe(Task task)
         {
             try
             {
-                var result = await service.WriteAsync (obj, testSpreadsheetID);
-                print (result ? "Write task succeeded" : "Write task failed");
+                await task;
             }
             catch (Exception e)
             {
                 print (e);
             }
-
         }
 
-        private async void Read<T>(Action<T> callback)
+        private async Task Write<T>(T obj)
+        {
+            var result = await service.WriteAsync (obj, testSpreadsheetID);
+            print (result ? "Sheets were successfully updated." : "Write task failed");
+        }
+
+        private async Task Read<T>(Action<T> callback)
             where T : new()
         {
-            try
-            {
-                var result = await service.ReadAsync<T> (testSpreadsheetID);
-                callback.Invoke (result);
-            }
-            catch (Exception e)
-            {
-                print (e);
-            }
+            var result = await service.ReadAsync<T> (testSpreadsheetID);
+            print (result is null ? "Failed." : "The requested object was successfully created.");
+            callback.Invoke (result);
         }
     }
 }

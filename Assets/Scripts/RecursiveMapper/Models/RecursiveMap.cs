@@ -10,7 +10,6 @@ namespace RecursiveMapper
         public IEnumerable<RecursiveMap<T>> Collection { get; }
         public Meta Meta { get; }
         public bool IsValue { get; }
-        public bool IsCollection => !IsValue;
 
         public RecursiveMap(IEnumerable<RecursiveMap<T>> collection, Meta meta)
         {
@@ -26,11 +25,8 @@ namespace RecursiveMapper
             IsValue = true;
         }
 
-        public RecursiveMap<TResult> Cast<TResult>(Func<T, Meta, RecursiveMap<TResult>> func)
-        {
-            return IsValue
-                       ? func.Invoke (Value, Meta)
-                       : new RecursiveMap<TResult> (Collection.Select (element => element.Cast (func)), Meta);
-        }
+        public RecursiveMap<T2> Cast<T2>(Func<T, Meta, RecursiveMap<T2>> func) => IsValue
+                                                                                      ? func.Invoke (Value, Meta)
+                                                                                      : new RecursiveMap<T2> (Collection.Select (e => e.Cast (func)), Meta);
     }
 }

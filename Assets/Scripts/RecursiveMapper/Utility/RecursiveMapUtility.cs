@@ -8,48 +8,69 @@ namespace RecursiveMapper
     // Operations with RecursiveMap, Type & FieldInfo classes
     static class RecursiveMapUtility
     {
+        public static RecursiveMap<T> Map<T>(this Meta meta, IEnumerable<RecursiveMap<T>> collection) => new RecursiveMap<T> (collection, meta);
+        public static RecursiveMap<T> Map<T>(this Meta meta, T value) => new RecursiveMap<T> (value, meta);
+
         public static MappedAttribute GetMappedAttribute(this FieldInfo info) => info.GetCustomAttribute<MappedAttribute> ();
         public static MappedClassAttribute GetMappedAttribute(this Type type) => type.GetCustomAttribute<MappedClassAttribute> ();
-        public static bool IsMapped(this object obj) => obj.GetType ().GetCustomAttribute<MappedClassAttribute> () != null;
-        public static string GetSheetName(this Type type) => type.GetCustomAttribute<MappedClassAttribute> ()?.SheetName ?? string.Empty;
 
-        public static void ListExistingSheetsRecursive(this RecursiveMap<bool> sheetsHierarchy, ICollection<string> results)
+        public static string GetSheetName(this Type type) => type.GetMappedAttribute ()?.SheetName ?? string.Empty;
+
+        public static RecursiveMap<T> MapTypeFields<T>(this Meta meta, Func<FieldInfo, T> eval)
         {
-            var maps = sheetsHierarchy.Collection.ToArray ();
-            if (maps.Any(x => x.Value))
-                results.Add($"'{sheetsHierarchy.Meta.FullName}'!{MapperService.FirstCellOfValueRange}:");
-            foreach (var element in maps.Where(x => x.IsCollection))
-                ListExistingSheetsRecursive (element, results);
+            return meta.Map (meta.FrontType.FieldsMap ().Select (f => Map (meta.CreateChildMeta (f.GetMappedAttribute ()), eval.Invoke (f))));
         }
 
-        public static bool HasRequiredSheets(this HashSet<string> sheets, RecursiveMap<bool> map) => map.IsValue && sheets.Contains (map.Meta.Sheet)
-                                                                                           || map.IsCollection && map.Collection.Any ();
-
-        public static RecursiveMap<string> JoinRecursive<T>(this IReadOnlyDictionary<string, IList<RecursiveMap<string>>> values,
-            IEnumerable<RecursiveMap<T>> right, Meta meta)
+        private static void Separate<T>(this IEnumerable<T> collection, Predicate<T> condition, out IList<T> onTrue, out IList<T> onFalse)
         {
-            var rightArray = right.ToArray ();
-            RecursiveMap<string>[] result = new RecursiveMap<string>[rightArray.Length];
-            var dictValues = rightArray.Any (map => map.IsValue)
-                                 ? values[meta.FullName]  // If the current Map should have its own ValueRange, looking for it in the dictionary
-                                 : null;
-
-            // IsValue elements are replaced by Maps from the dictionary, keeping their order. IsCollection elements are going recursive
-            int dictValuesIndex = -1;
-            for (int i = 0; i < rightArray.Length; i++)
-                result[i] = rightArray[i].IsValue
-                                ? dictValues?[++dictValuesIndex]
-                                : values.JoinRecursive (rightArray[i].Collection, rightArray[i].Meta);
-
-            return new RecursiveMap<string> (result, meta);
+            onTrue = new List<T> ();
+            onFalse = new List<T> ();
+            foreach (var element in collection)
+                (condition.Invoke (element) ? onTrue : onFalse).Add (element);
         }
 
-        public static RecursiveMap<bool> FillIndicesRecursive(this Predicate<RecursiveMap<bool>> condition, bool value, Meta meta)
+
+        public static bool HasRequiredSheets(this HashSet<string> sheets, RecursiveMap<string> map) => map.IsValue && sheets.Contains (map.Meta.Sheet)
+                                                                                           || !map.IsValue && map.Collection.Any ();  // todo - so bad
+
+        // Map was already built. This method just connects Map<string> from different ValueRange. DONT TRY to adapt it for CAST - it doesn't fit
+        public static RecursiveMap<string> JoinRecursive(this Dictionary<string, IList<RecursiveMap<string>>> values, RecursiveMap<string> map)
         {
-            return meta.IsSingleObject
-                       ? new RecursiveMap<bool> (value, meta)
-                       : meta.MakeMap (SpawnWhile (condition, i => new RecursiveMap<bool> (true, new Meta (meta, i))))
-                             .Cast (condition.FillIndicesRecursive);
+            var elements = map.Collection.ToList ();
+            var compactElementsSheet = elements.FirstOrDefault (x => x.IsValue);
+            if (compactElementsSheet is null)
+                return map.Meta.Map (elements.Select (values.JoinRecursive));
+
+            elements.Remove (compactElementsSheet);
+            var compactElements = values[compactElementsSheet.Value];
+            int sheetIndex = -1;
+            int compactIndex = -1;
+            return map.Meta.Map (map.Meta.FrontType.FieldsMap ().Select (f => !f.GetArrayTypes().Last().GetMappedAttribute().IsCompact
+                                                                                        ? values.JoinRecursive (elements[++sheetIndex])
+                                                                                        : compactElements[++compactIndex]));
+        }
+
+        public static RecursiveMap<string> KeepSheetsOnly(this RecursiveMap<string> target, List<string> list)
+        {
+            List<RecursiveMap<string>> resultCollection = new List<RecursiveMap<string>> ();
+            target.Collection.Separate (e => e.Meta.ContentType == ContentType.Sheet, out var onTrue, out var onFalse);
+            if (onFalse.Count > 0)
+            {
+                var name = target.Meta.FullName;
+                list.Add (name);
+                resultCollection.Add (new RecursiveMap<string> (name, Meta.Point));
+            }
+
+            resultCollection.AddRange (onTrue.Select (e => KeepSheetsOnly(e, list)));
+            return new RecursiveMap<string> (resultCollection, target.Meta);
+        }
+
+        public static RecursiveMap<string> FillIndicesRecursive(this Predicate<RecursiveMap<string>> condition, string _, Meta meta)
+        {
+            return meta.ContentType == ContentType.Sheet
+                       ? meta.Map (SpawnWhile (condition, i => new Meta (meta, i).Map (string.Empty)))
+                             .Cast (condition.FillIndicesRecursive)
+                       : meta.Map (string.Empty);
         }
 
         static IEnumerable<T> SpawnWhile<T>(Predicate<T> condition, Func<int, T> produce)
@@ -60,11 +81,28 @@ namespace RecursiveMapper
                 yield return result;
         }
 
-        public static RecursiveMap<T> MakeMap<T>(this Meta meta, IEnumerable<RecursiveMap<T>> collection) => new RecursiveMap<T> (collection, meta);
-
-        // Used with Reflection
+        // Used with Reflection           todo :  why not an IEnumerable?
         static IEnumerable<object> Unpack<T>(object collection) => collection is IEnumerable<T> enumerable
                                                                        ? enumerable.Cast<object> ()
                                                                        : throw new InvalidCastException();
+
+        public static IReadOnlyList<Type> GetArrayTypes(this FieldInfo field)
+        {
+            var attribute = field.GetMappedAttribute ();
+            if (attribute.ArrayTypes is null)
+            {
+                var types = new List<Type> {field.FieldType};
+                for (int i = 0; i < attribute.DimensionCount; i++) // todo - look specifically for IEnumerable<>
+                    types.Add (types.Last ().GetTypeInfo ().GetInterfaces ().FirstOrDefault (x => x.IsGenericType)?.GetGenericArguments ()[0]);
+                attribute.ArrayTypes = types;
+            }
+            return attribute.ArrayTypes;
+        }
+
+        public static IList<FieldInfo> FieldsMap(this Type t) => t.GetMappedAttribute ().Fields ??=
+                                                                     t.GetFields (BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                                                                      .Where (info => info.GetMappedAttribute () != null)
+                                                                      .OrderBy (x => x.GetMappedAttribute ().Position)
+                                                                      .ToList ();
     }
 }

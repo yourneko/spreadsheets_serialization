@@ -7,29 +7,29 @@ namespace RecursiveMapper
 {
     struct ValueRangeBuilder
     {
-        private readonly RecursiveMap<string> reference;
         private readonly System.Text.StringBuilder sb;
         private readonly List<List<object>> output;
+        private readonly string firstCell;
         private int x, y;
 
-        public ValueRangeBuilder(RecursiveMap<string> content)
+        public ValueRangeBuilder(string a1FirstCell)
         {
             sb        = new System.Text.StringBuilder ();
-            reference = content;
             output    = new List<List<object>> {new List<object> ()};
+            firstCell = a1FirstCell;
             x         = 1;
             y         = 0;
         }
 
-        public ValueRange ToValueRange(string firstCell)
+        public ValueRange ToValueRange(RecursiveMap<string> content)
         {
             (int x1, int y1) = SpreadsheetsUtility.ReadA1 (firstCell);
-            var p = ProcessMapRecursive (reference);
-            output[0].Add(sb.ToString ());
+            var p = ProcessMapRecursive (content);
+            output[0].Add(sb.ToString ());   // todo - custom formatting, like grey color (extend to attribute later)
             return new ValueRange {
                                       MajorDimension = "COLUMNS",
                                       Values         = output.Cast<IList<object>> ().ToList (),
-                                      Range          = $"'{reference.Meta.FullName}'!{firstCell}:{SpreadsheetsUtility.WriteA1 (x1 + p.X2, y1 + p.Y2)}",
+                                      Range          = $"'{content.Meta.FullName}'!{firstCell}:{SpreadsheetsUtility.WriteA1 (x1 + p.X2, y1 + p.Y2)}",
                                   };
         }
 
@@ -44,9 +44,9 @@ namespace RecursiveMapper
             }
 
             var point = new MapRegion {X1 = x, Y1 = y, Vertical = !map.Meta.IsSingleObject && ((map.Meta.Rank & 1) == 0)};
-            sb.Append (map.Meta.IsSingleObject ? '(' : point.Vertical ? '<' : '[');
+            sb.Append (map.Meta.IsSingleObject ? '(' : (map.Meta.Rank & 1) == 0 ? '<' : '[');
 
-            foreach (var element in map.Collection)
+            foreach (var element in map.Collection.Where(e => e.Meta.ContentType != ContentType.Sheet))
             {
                 var resultRegion = ProcessMapRecursive (element);
                 point.X2 = Math.Max (point.X2, resultRegion.X2);
@@ -54,7 +54,7 @@ namespace RecursiveMapper
                 x        = point.Vertical ? point.X1 : point.X2 + 1;
                 y        = point.Vertical ? point.Y2 + 1 : point.Y1;
             }
-            sb.Append (map.Meta.IsSingleObject ? ')' : point.Vertical ? '>' : ']');
+            sb.Append (map.Meta.IsSingleObject ? ')' : (map.Meta.Rank & 1) == 0 ? '>' : ']');
             return point;
         }
 

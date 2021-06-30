@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace RecursiveMapper
 {
@@ -7,6 +8,8 @@ namespace RecursiveMapper
     {
         internal readonly int Position;
         internal readonly int DimensionCount;
+
+        internal IReadOnlyList<Type> ArrayTypes;
 
         public MappedAttribute(int position, int dimensions = 0)
         {
