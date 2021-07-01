@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 
 namespace RecursiveMapper
 {
@@ -16,23 +17,20 @@ namespace RecursiveMapper
         private readonly int[] indices;
 
         public Type FrontType => types[indices.Length];
-        public Type UnpackType => IsSingleObject ? null : types[Rank + 1];
         public bool IsSingleObject => Rank == indices.Length;
-        public string FullName => IsSingleObject && (Rank > 0)
-                                      ? $"{Sheet} {string.Join (" ", indices)}"
-                                      : Sheet;
+        public string FullName => Sheet + indices.Where (i => i > 0).Select (i => $" {i}");
 
-        public Meta(string dimensionName, IReadOnlyList<Type> types)
+        public Meta(string dimensionName, IReadOnlyList<Type> arrayTypes)
         {
-            this.types = types.ToList ();
-            Sheet      = dimensionName;
-            indices    = new int[this.types.Count - 1];
-            Rank       = 0;
+            types   = arrayTypes.ToList ();
+            Sheet   = dimensionName;
+            indices = new int[types.Count - 1];
+            Rank    = 0;
 
-            var mapRegionAttribute = this.types.Last ().GetMappedAttribute ();
-            ContentType = mapRegionAttribute is null
+            var attribute = types.Last ().GetMappedAttribute ();
+            ContentType = attribute is null
                               ? ContentType.Value
-                              : mapRegionAttribute.IsCompact
+                              : attribute.IsCompact
                                   ? ContentType.Object
                                   : ContentType.Sheet;
         }
@@ -48,6 +46,10 @@ namespace RecursiveMapper
             indices[reference.Rank] = addingIndex;
         }
 
-        public Meta CreateChildMeta(MappedAttribute attribute) => new Meta (FullName.JoinSheetNames (types.Last ().GetSheetName ()), attribute.ArrayTypes);
+        public Meta CreateChildMeta(FieldInfo field)
+        {
+            var tt = field.GetArrayTypes ();
+            return new Meta (FullName.JoinSheetNames (tt.Last ().GetSheetName ()), tt);
+        }
     }
 }

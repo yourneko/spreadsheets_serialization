@@ -10,17 +10,18 @@ namespace RecursiveMapper
         /// <summary>
         /// Represents object as a string value.
         /// </summary>
-        /// <param name="value"></param>
-        /// <typeparam name="T"></typeparam>
-        /// <returns></returns>
+        /// <param name="value">User's object</param>
+        /// <typeparam name="T">The type defines a strategy of serialization.</typeparam>
+        /// <returns>Culture-invariant formatting for simple types.</returns>
         string Serialize<T>(T value);
 
         /// <summary>
-        ///
+        /// Creates an object of the given type out of the string.
         /// </summary>
-        /// <param name="type"></param>
-        /// <param name="text"></param>
-        /// <returns></returns>
+        /// <param name="type">Type of object.</param>
+        /// <param name="text">A source string.</param>
+        /// <returns>Result object.</returns>
+        /// <exception cref="NotSupportedException">Serialization of a given type is not implemented.</exception>
         object Deserialize(Type type, string text);
     }
 }

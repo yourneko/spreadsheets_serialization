@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Concurrent;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -13,10 +13,8 @@ namespace RecursiveMapper
 {
     public class MapperService : IDisposable
     {
-        public const string FirstCellOfValueRange = "A2";
-
-        readonly MethodInfo addMethodInfo = typeof(ICollection<>).GetMethod ("Add", BindingFlags.DeclaredOnly | BindingFlags.Instance | BindingFlags.Public);
-        readonly MethodInfo unpackMethod = typeof(RecursiveMapUtility).GetMethod ("Unpack", BindingFlags.Static | BindingFlags.NonPublic);
+        const string FirstCellOfValueRange = "A2";
+        readonly MethodInfo addMethodInfo = typeof(ICollection<>).GetMethod ("Add", BindingFlags.DeclaredOnly|BindingFlags.Instance|BindingFlags.Public);
 
         private readonly SheetsService service;
         private readonly IValueSerializer serializer;
@@ -39,15 +37,12 @@ namespace RecursiveMapper
             Debug.LogError ($"sheets exist: {string.Join (Environment.NewLine, availableSheets)}");
             Debug.LogError ($"sheets required: {string.Join (Environment.NewLine, ranges)}");
 
-            if (!availableSheetHashes.IsSupersetOf(ranges))
-                return default(T);
-
             var valueRanges = await service.GetValueRanges (spreadsheet, ranges.ToArray());
             Debug.Log ($"Received {valueRanges.Count} ranges in response.");
             Debug.Log (string.Join (Environment.NewLine, valueRanges.Select (r => $"range > {r.Range}, dimension > {r.MajorDimension}")));
             var dictionaryValues = valueRanges.ToDictionary (range => range.Range.Split ('!')[0].Trim ('\''),
                                                              range => new ValueRangeReader (range).Read ());
-            return (T)UnmapObjectRecursive (typeof(T), dictionaryValues.JoinRecursive (hierarchy));
+            return (T)UnmapObjectRecursive (typeof(T), JoinRecursive (dictionaryValues, hierarchy));
         }
 
         /// <summary>
@@ -60,7 +55,7 @@ namespace RecursiveMapper
         public Task<bool> WriteAsync<T>(T obj, string spreadsheet, string sheet = "")
         {
             var valueRangeList = new List<ValueRange> ();
-            ListRangesRecursive (SerializeRecursive (obj, CreateInitialMeta<T> (sheet)), valueRangeList);
+            ConvertMapToValueRangesRecursive (ToMapRecursive (obj, CreateInitialMeta<T> (sheet)), valueRangeList);
             return service.WriteRangesAsync (spreadsheet, valueRangeList);
         }
 
@@ -84,38 +79,70 @@ namespace RecursiveMapper
 
         static Meta CreateInitialMeta<T>(string input) => new Meta (input.JoinSheetNames(typeof(T).GetSheetName()), new[]{typeof(T)});
 
-        RecursiveMap<object> UnpackCollection(object collection, Meta meta)
-        {
-            var elements = (IEnumerable<object>)unpackMethod.MakeGenericMethod (meta.UnpackType).Invoke (null, new[] {collection});
-            return new RecursiveMap<object> (elements.Select ((e, i) => new Meta (meta, i + 1).Map (e)), meta);
-        }
+        RecursiveMap<string> ToMapRecursive(object obj, Meta meta) => meta.IsSingleObject
+                                                                          ? meta.ContentType == ContentType.Value
+                                                                                ? meta.Map (serializer.Serialize (obj))
+                                                                                : meta.MapFieldsOfClass (f => f.GetValue (obj))
+                                                                                      .Cast (ToMapRecursive)
+                                                                          : obj is ICollection cc
+                                                                                ? meta.Map (cc.Cast<object>().Select ((e, i) => new Meta (meta, i + 1).Map (e)))
+                                                                                      .Cast (ToMapRecursive)
+                                                                                : throw new ArrayTypeMismatchException();
 
-        RecursiveMap<string> SerializeRecursive(object obj, Meta meta) => meta.IsSingleObject
-                                                                              ? meta.ContentType == ContentType.Value
-                                                                                    ? meta.Map (serializer.Serialize (obj))
-                                                                                    : meta.MapTypeFields (f => f.GetValue (obj)).Cast (SerializeRecursive)
-                                                                              : UnpackCollection (obj, meta).Cast (SerializeRecursive);
+        static void ConvertMapToValueRangesRecursive(RecursiveMap<string> data, ICollection<ValueRange> list)
+        {
+            foreach (var map in data.Collection.Where (e => e.Meta.ContentType == ContentType.Sheet))
+                ConvertMapToValueRangesRecursive (map, list);
+            if (data.Collection.Any (element => element.Meta.ContentType != ContentType.Sheet))
+                list.Add (new ValueRangeBuilder (FirstCellOfValueRange).ToValueRange (data));
+        }
 
         static RecursiveMap<string> MapSheetsRecursive(Predicate<RecursiveMap<string>> func, Meta meta, List<string> sheets)
         {
-            return meta.MapTypeFields (_ => string.Empty)
-                       .KeepSheetsOnly(sheets)
-                       .Cast (func.FillIndicesRecursive)
-                       .Cast ((_, m) => MapSheetsRecursive (func, m, sheets));
+            return KeepSheetsOnly(meta.MapFieldsOfClass (_ => string.Empty), sheets)
+                      .Cast (func.FillIndicesRecursive)
+                      .Cast ((_, m) => MapSheetsRecursive (func, m, sheets));
         }
 
-        static void ListRangesRecursive(RecursiveMap<string> data, List<ValueRange> list)
+        static RecursiveMap<string> KeepSheetsOnly(RecursiveMap<string> target, List<string> list)
         {
-            foreach (var map in data.Collection.Where (e => e.Meta.ContentType == ContentType.Sheet))
-                ListRangesRecursive (map, list);
-            if (data.Collection.Any (element => element.Meta.ContentType != ContentType.Sheet))
-                list.Add (new ValueRangeBuilder (FirstCellOfValueRange).ToValueRange (data));
+            List<RecursiveMap<string>> resultCollection = new List<RecursiveMap<string>> ();
+            var onTrue  = new List<RecursiveMap<string>> ();
+            var onFalse = new List<RecursiveMap<string>> ();
+            foreach (var element in target.Collection)
+                (element.Meta.ContentType == ContentType.Sheet ? onTrue : onFalse).Add (element);
+
+            if (onFalse.Count > 0)
+            {
+                var name = target.Meta.FullName;
+                list.Add (name);
+                resultCollection.Add (new RecursiveMap<string> ($"'{name}'!{FirstCellOfValueRange}:ZZ999", Meta.Point));
+            }
+
+            resultCollection.AddRange (onTrue.Select (e => KeepSheetsOnly(e, list)));
+            return new RecursiveMap<string> (resultCollection, target.Meta);
+        }
+
+        static RecursiveMap<string> JoinRecursive(IReadOnlyDictionary<string, IList<RecursiveMap<string>>> values, RecursiveMap<string> map)
+        {
+            var elements = map.Collection.ToList ();
+            var compactElementsSheet = elements.FirstOrDefault (x => x.IsValue);
+            if (compactElementsSheet is null)
+                return map.Meta.Map (elements.Select (e => JoinRecursive(values, e)));
+
+            elements.Remove (compactElementsSheet);
+            var compactElements = values[compactElementsSheet.Value];
+            int sheetIndex = -1;
+            int compactIndex = -1;
+            return map.Meta.Map (map.Meta.FrontType.FieldsMap ().Select (f => !f.GetArrayTypes().Last().GetMappedAttribute().IsCompact
+                                                                                  ? JoinRecursive (values, elements[++sheetIndex])
+                                                                                  : compactElements[++compactIndex]));
         }
 
         object UnmapObjectRecursive(Type type, RecursiveMap<string> ranges)
         {
             var result = Activator.CreateInstance(type);
-            using var maps = ranges.Collection.GetEnumerator (); // todo - here we can find out that number of mapped fields changed
+            using var maps = ranges.Collection.GetEnumerator (); //  here we can find out that number of mapped fields changed
             foreach (var field in  type.FieldsMap())
                 field.SetValue (result,
                                 maps.MoveNext () && maps.Current != null

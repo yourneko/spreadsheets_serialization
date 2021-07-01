@@ -6,7 +6,7 @@ namespace RecursiveMapper
 {
     class DefaultValueSerializer : IValueSerializer
     {
-        private static readonly Dictionary<Type, Func<string, object>> Switch =
+        static readonly IReadOnlyDictionary<Type, Func<string, object>> Switch =
             new Dictionary<Type, Func<string, object>>
             {
                 {typeof(string), s => s},

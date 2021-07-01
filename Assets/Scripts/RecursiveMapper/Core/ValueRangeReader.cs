@@ -21,8 +21,7 @@ namespace RecursiveMapper
         public IList<RecursiveMap<string>> Read()
         {
             points.Push (new MapRegion {X1 = 1, Y1 = 0, X2 = 1, Y2 = 0, Vertical = false, Maps = new List<RecursiveMap<string>> ()});
-            IEnumerable<char> path = (string)range[0][0];
-            foreach (var c in path)
+            foreach (var c in (string)range[0][0])
                 Read (c);
             return points.Pop().Maps;
         }
@@ -32,23 +31,17 @@ namespace RecursiveMapper
             MapRegion point = points.Peek ();
             switch (c)
             {
-                case '[':
-                case '(':
-                case '<':
-                    point    = new MapRegion {X1 = x, Y1 = y, Maps = new List<RecursiveMap<string>> (), Vertical = c == '<'};
-                    points.Push (point);
+                case '[': case '(': case '<':
+                    points.Push ((point = new MapRegion {X1 = x, Y1 = y, Maps = new List<RecursiveMap<string>> (), Vertical = c == '<'}));
                     break;
                 case '.':
                     point.Maps.Add(new RecursiveMap<string>((string)range[x][y], Meta.Point));
                     point.X2 = Math.Max (point.X2, x);
                     point.Y2 = Math.Max (point.Y2, y);
                     break;
-                case ']':
-                case ')':
-                case '>':
+                case ']': case ')': case '>':
                     var closedPoint = points.Pop ();
-                    point = points.Peek ();
-                    point.Maps.Add(new RecursiveMap<string> (closedPoint.Maps, null));
+                    (point = points.Peek ()).Maps.Add(new RecursiveMap<string> (closedPoint.Maps, null));
                     point.X2 = Math.Max (point.X2, closedPoint.X2);
                     point.Y2 = Math.Max (point.Y2, closedPoint.Y2);
                     break;

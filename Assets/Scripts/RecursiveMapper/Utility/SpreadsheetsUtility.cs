@@ -14,11 +14,6 @@ namespace RecursiveMapper
     static class SpreadsheetsUtility
     {
         const int A1_LETTERS_COUNT = 26;
-        static string RequestedRangeString(string sheet) => $"'{sheet}'!{MapperService.FirstCellOfValueRange}:ZZ999";
-        static string InitialSheet<T>(string s) => s.JoinSheetNames (typeof(T).GetSheetName ());
-        public static string JoinSheetNames(this string parent, string child) => child.Contains ("{0}")
-                                                                                     ? string.Format (child, parent)
-                                                                                     : parent + child;
 
         static ClientServiceRequest<T> AddBackOffHandler<T>(this ClientServiceRequest<T> request, BackOffHandler handler = null)
         {
@@ -26,12 +21,16 @@ namespace RecursiveMapper
             return request;
         }
 
+        public static string JoinSheetNames(this string parent, string child) => child.Contains ("{0}")
+                                                                                     ? string.Format (child, parent)
+                                                                                     : parent + child;
+
 #region Sending async Google Sheets API Requests to SheetsService
 
         public static async Task<bool> WriteRangesAsync(this SheetsService service, string spreadsheet, IList<ValueRange> values)
         {
-            var sheets = values.Select (range => range.Range.Split ('!')[0].Trim ('\''));
-            var hasRequiredSheets = await service.CreateSheetsAsync (spreadsheet, new HashSet<string>(sheets));
+            var hashset = new HashSet<string> (values.Select (range => range.Range.Split ('!')[0].Trim ('\'')));
+            var hasRequiredSheets = await service.CreateSheetsAsync (spreadsheet, hashset);
             if (!hasRequiredSheets)
                 return false;
 
@@ -56,13 +55,10 @@ namespace RecursiveMapper
 
         static async Task<bool> CreateSheetsAsync(this SheetsService service, string spreadsheet, HashSet<string> requiredSheets)
         {
-            if (!requiredSheets.Any ()) throw new Exception ("Writing 0 sheets");
-
             var existingSheets = await service.GetSheetsListAsync (spreadsheet);
-            var sheetsToAdd = requiredSheets.Except (existingSheets).ToArray ();
-            if (sheetsToAdd.Length == 0) return true;
-
-            var result = await service.Spreadsheets.BatchUpdate (CreateAddSheetsRequest (sheetsToAdd), spreadsheet).AddBackOffHandler().ExecuteAsync ();
+            if ((existingSheets = requiredSheets.Except (existingSheets).ToArray ()).Length == 0)
+                return true;
+            var result = await service.Spreadsheets.BatchUpdate (CreateAddSheetsRequest (existingSheets), spreadsheet).AddBackOffHandler().ExecuteAsync ();
             return result.Replies.All(reply => reply.AddSheet.Properties != null);
         }
 
@@ -72,14 +68,13 @@ namespace RecursiveMapper
         static BatchUpdateSpreadsheetRequest CreateAddSheetsRequest(ICollection<string> sheetsToCreate) =>
             new BatchUpdateSpreadsheetRequest {Requests = sheetsToCreate.Select (CreateAddSheetRequest).ToList ()};
 
-        static Request CreateAddSheetRequest(string sheetNme)
+        static Request CreateAddSheetRequest(string sheetName)
         {
-            var innerRequest = new AddSheetRequest {Properties = CreateSheetProperties (sheetNme)};
+            var innerRequest = new AddSheetRequest {Properties = new SheetProperties {Title = sheetName}};
             return new Request {AddSheet = innerRequest};
         }
 
-        static SheetProperties CreateSheetProperties(string sheetName) => new SheetProperties {Title = sheetName};
-        static BatchUpdateValuesRequest UpdateRequest(IList<ValueRange> r) => new BatchUpdateValuesRequest { Data = r, ValueInputOption = "USER_ENTERED" };
+        static BatchUpdateValuesRequest UpdateRequest(IList<ValueRange> data) => new BatchUpdateValuesRequest { Data = data, ValueInputOption = "USER_ENTERED" };
 
 #endregion
 #region Google Spreadsheets A1 notation
@@ -99,7 +94,6 @@ namespace RecursiveMapper
             int result = (int)digits.Reverse ().Select ((c, i) => (c - zero) * Math.Pow (@base, i)).Sum ();
             return result-- > 0 ? result : 999; // In Google Spreadsheets notation, upper boundary of the range may be missing - it means 'up to a big number'
         }
-
 #endregion
     }
 }
