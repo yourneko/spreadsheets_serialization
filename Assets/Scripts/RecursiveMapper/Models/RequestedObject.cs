@@ -11,6 +11,8 @@ namespace RecursiveMapper
         public readonly int[] Index;
         public readonly IReadOnlyList<string> RequestedSheets;
 
+        public IEnumerable<string> FullNames => Type.RequiredSheets.Select (ParentName.JoinSheetNames);
+
         public RequestedObject(MappedClassAttribute type, string name, params int[] indices)
         {
             Type       = type;

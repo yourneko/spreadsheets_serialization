@@ -21,10 +21,6 @@ namespace RecursiveMapper
             return request;
         }
 
-        public static string JoinSheetNames(this string parent, string child) => child.Contains ("{0}")
-                                                                                     ? string.Format (child, parent)
-                                                                                     : parent + child;
-
 #region Sending async Google Sheets API Requests to SheetsService
 
         public static async Task<bool> WriteRangesAsync(this SheetsService service, string spreadsheet, IList<ValueRange> values)
@@ -44,10 +40,10 @@ namespace RecursiveMapper
             return spreadsheet.Sheets.Select (sheet => sheet.Properties.Title).ToArray ();
         }
 
-        public static async Task<IList<ValueRange>> GetValueRanges(this SheetsService service, string spreadsheet, params string[] ranges)
+        public static async Task<IList<ValueRange>> GetValueRanges(this SheetsService service, string spreadsheet, IEnumerable<string> ranges)
         {
             var request = service.Spreadsheets.Values.BatchGet (spreadsheet);
-            request.Ranges         = ranges;
+            request.Ranges         = ranges.ToArray();
             request.MajorDimension = SpreadsheetsResource.ValuesResource.BatchGetRequest.MajorDimensionEnum.COLUMNS;
             var result = await request.AddBackOffHandler().ExecuteAsync ();
             return result.ValueRanges;

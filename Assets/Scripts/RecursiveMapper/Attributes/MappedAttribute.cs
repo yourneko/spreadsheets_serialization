@@ -35,7 +35,11 @@ namespace RecursiveMapper
                                   ?.GetGenericArguments ()[0]);
             ArrayTypes = types;
             FrontType  = ArrayTypes[DimensionCount].MapAttribute ();
-            Content    = types.Last ().GetContentType ();
+            Content = FrontType is null
+                          ? ContentType.Value
+                          : string.IsNullOrEmpty (FrontType.SheetName)
+                              ? ContentType.Object
+                              : ContentType.Sheet;
         }
     }
 }

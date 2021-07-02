@@ -34,10 +34,9 @@ namespace RecursiveMapper
                                ? new List<RequestedObject> {new RequestedObject (type, sheet)}
                                : throw new Exception ();
             FindCollections (availableSheets, type, sheet, requests);
-            var ranges = requests.SelectMany (x => x.Type.RequiredSheets.Select (x.ParentName.JoinSheetNames).Select (WholeSheetCellRange)).ToArray ();
 
-            var valueRanges = await service.GetValueRanges (spreadsheet, ranges);
-            return (T)AssembleSheet (type, sheet, requests, valueRanges.ToDictionary (r => TrimCellRange (r.Range), r => r.Values));
+            var valueRanges = await service.GetValueRanges (spreadsheet, requests.SelectMany (x => x.FullNames.Select (MaxCellRange)));
+            return (T)AssembleSheet (type, sheet, requests, valueRanges.ToDictionary (r => r.Range.Split ('!')[0].Trim ('\''), r => r.Values));
         }
 
         /// <summary>
@@ -65,7 +64,6 @@ namespace RecursiveMapper
             service = new SheetsService (initializer
                                       ?? throw new ArgumentException ("SheetsService can't be null"));
             serializer = valueSerializer ?? new DefaultValueSerializer ();
-
         }
 
         public void Dispose()
@@ -78,8 +76,10 @@ namespace RecursiveMapper
         void ToRanges(object obj, MappedClassAttribute type, string parentName, ICollection<ValueRange> results)
         {
             string name = parentName.JoinSheetNames (type.SheetName);
-            foreach (var a in type.SheetsFields)
-                obj.UnwrapField (name, a).ForEachValue (o => ToRanges (o.Value, a.FrontType, o.Name, results)); // todo - get rid of the shit
+            foreach (var field in type.SheetsFields)
+                foreach (var pair in field.Field.GetValue (obj).ToCollection (name, field.DimensionCount))
+                    ToRanges (pair.Value, field.FrontType, pair.Key, results);
+
             if (type.CompactFields.Count == 0)
                 return;
 
@@ -132,6 +132,7 @@ namespace RecursiveMapper
 #endregion
 #region Read: making the request
 
+        static string MaxCellRange(string sheet) => $"'{sheet}'!{FirstCell}:ZZ999";
         void FindCollections(HashSet<string> available, MappedClassAttribute type, string name, List<RequestedObject> results)
         {
             var thisName = name.JoinSheetNames (type.SheetName);
@@ -149,8 +150,8 @@ namespace RecursiveMapper
 
             while (index >= 0)
             {
-                RequestedObject result;
-                if (available.IsSupersetOf ((result = new RequestedObject(type, name, indices)).RequestedSheets))
+                RequestedObject result = new RequestedObject(type, name, indices);
+                if (available.IsSupersetOf (result.RequestedSheets))
                 {
                     yield return result;
                     index          =  dimensions - 1;
@@ -163,9 +164,6 @@ namespace RecursiveMapper
                 }
             }
         }
-
-        string WholeSheetCellRange(string sheetName) => $"'{sheetName}'!{FirstCell}:ZZ999";
-        string TrimCellRange(string valueRange) => valueRange.Split ('!')[0].Trim ('\'');
 
 #endregion
 #region Read: assembling the object from ValueRange[]
