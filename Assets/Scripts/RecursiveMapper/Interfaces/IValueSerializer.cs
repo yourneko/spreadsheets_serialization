@@ -13,7 +13,7 @@ namespace RecursiveMapper
         /// <param name="value">User's object</param>
         /// <typeparam name="T">The type defines a strategy of serialization.</typeparam>
         /// <returns>Culture-invariant formatting for simple types.</returns>
-        string Serialize<T>(T value);
+        string Serialize(object value);
 
         /// <summary>
         /// Creates an object of the given type out of the string.

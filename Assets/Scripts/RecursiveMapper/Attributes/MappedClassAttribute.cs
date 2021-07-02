@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 
 namespace RecursiveMapper
@@ -7,20 +8,34 @@ namespace RecursiveMapper
     [AttributeUsage (AttributeTargets.Class)]
     public class MappedClassAttribute : Attribute
     {
-        internal readonly bool IsCompact;
-        internal readonly string SheetName;
+        public readonly string SheetName;
+        internal readonly Type Type;
+        string[] requiredSheets;
 
-        internal IList<FieldInfo> Fields;
+        internal bool Initialized { get; private set; }
+        internal IReadOnlyList<MappedAttribute> CompactFields { get; private set; }
+        internal IReadOnlyList<MappedAttribute> SheetsFields { get; private set; }
 
-        public MappedClassAttribute(string sheetName)
+        internal IReadOnlyList<string> RequiredSheets => requiredSheets ??= SheetsFields.Where (x => x.DimensionCount == 0)
+                                                                                        .SelectMany (x => x.FrontType.RequiredSheets)
+                                                                                        .Select (SheetName.JoinSheetNames).ToArray ();
+
+        public MappedClassAttribute(string sheetName = null)
         {
-            IsCompact = false;
             SheetName = sheetName;
         }
 
-        public MappedClassAttribute()
+        internal void CacheMeta(Type type)
         {
-            IsCompact = true;
+            Initialized = true;
+            var allFields = type.GetFields (BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                                .Select (field => field.MapAttribute ())
+                                .Where (x => x != null)
+                                .ToArray ();
+            SheetsFields = allFields.Where (x => x.Content == ContentType.Sheet).ToArray ();
+            CompactFields = allFields.Where (x => x.Content != ContentType.Sheet)
+                                     .OrderBy (x => x.Position)
+                                     .ToArray ();
         }
     }
 }

@@ -2,19 +2,16 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using System.Threading.Tasks;
 using Google.Apis.Services;
 using Google.Apis.Sheets.v4;
 using Google.Apis.Sheets.v4.Data;
-using UnityEngine;
 
 namespace RecursiveMapper
 {
     public class MapperService : IDisposable
     {
-        const string FirstCellOfValueRange = "A2";
-        readonly MethodInfo addMethodInfo = typeof(ICollection<>).GetMethod ("Add", BindingFlags.DeclaredOnly|BindingFlags.Instance|BindingFlags.Public);
+        public const string FirstCell = "A2";
 
         private readonly SheetsService service;
         private readonly IValueSerializer serializer;
@@ -27,22 +24,20 @@ namespace RecursiveMapper
         /// <typeparam name="T">Type of object to read from the spreadsheet data.</typeparam>
         /// <returns>Object of type T.</returns>
         public async Task<T> ReadAsync<T>(string spreadsheet, string sheet = "")
-            where T : new()
+            where T : new ()
         {
-            var availableSheets = await service.GetSheetsListAsync (spreadsheet);
-            var availableSheetHashes = new HashSet<string> (availableSheets);
-            List<string> ranges = new List<string>();
-            var hierarchy = MapSheetsRecursive (availableSheetHashes.HasRequiredSheets, CreateInitialMeta<T>(sheet), ranges);
+            var sheetsList = await service.GetSheetsListAsync (spreadsheet);
+            var availableSheets = new HashSet<string> (sheetsList);
+            var type = typeof(T).MapAttribute ();
 
-            Debug.LogError ($"sheets exist: {string.Join (Environment.NewLine, availableSheets)}");
-            Debug.LogError ($"sheets required: {string.Join (Environment.NewLine, ranges)}");
+            var requests = availableSheets.IsSupersetOf (type.RequiredSheets.Select (sheet.JoinSheetNames))
+                               ? new List<RequestedObject> {new RequestedObject (type, sheet)}
+                               : throw new Exception ();
+            FindCollections (availableSheets, type, sheet, requests);
+            var ranges = requests.SelectMany (x => x.Type.RequiredSheets.Select (x.ParentName.JoinSheetNames).Select (WholeSheetCellRange)).ToArray ();
 
-            var valueRanges = await service.GetValueRanges (spreadsheet, ranges.ToArray());
-            Debug.Log ($"Received {valueRanges.Count} ranges in response.");
-            Debug.Log (string.Join (Environment.NewLine, valueRanges.Select (r => $"range > {r.Range}, dimension > {r.MajorDimension}")));
-            var dictionaryValues = valueRanges.ToDictionary (range => range.Range.Split ('!')[0].Trim ('\''),
-                                                             range => new ValueRangeReader (range).Read ());
-            return (T)UnmapObjectRecursive (typeof(T), JoinRecursive (dictionaryValues, hierarchy));
+            var valueRanges = await service.GetValueRanges (spreadsheet, ranges);
+            return (T)AssembleSheet (type, sheet, requests, valueRanges.ToDictionary (r => TrimCellRange (r.Range), r => r.Values));
         }
 
         /// <summary>
@@ -55,7 +50,7 @@ namespace RecursiveMapper
         public Task<bool> WriteAsync<T>(T obj, string spreadsheet, string sheet = "")
         {
             var valueRangeList = new List<ValueRange> ();
-            ConvertMapToValueRangesRecursive (ToMapRecursive (obj, CreateInitialMeta<T> (sheet)), valueRangeList);
+            ToRanges (obj, typeof(T).MapAttribute (), sheet, valueRangeList);
             return service.WriteRangesAsync (spreadsheet, valueRangeList);
         }
 
@@ -70,6 +65,7 @@ namespace RecursiveMapper
             service = new SheetsService (initializer
                                       ?? throw new ArgumentException ("SheetsService can't be null"));
             serializer = valueSerializer ?? new DefaultValueSerializer ();
+
         }
 
         public void Dispose()
@@ -77,94 +73,143 @@ namespace RecursiveMapper
             service.Dispose ();
         }
 
-        static Meta CreateInitialMeta<T>(string input) => new Meta (input.JoinSheetNames(typeof(T).GetSheetName()), new[]{typeof(T)});
+#region Write
 
-        RecursiveMap<string> ToMapRecursive(object obj, Meta meta) => meta.IsSingleObject
-                                                                          ? meta.ContentType == ContentType.Value
-                                                                                ? meta.Map (serializer.Serialize (obj))
-                                                                                : meta.MapFieldsOfClass (f => f.GetValue (obj))
-                                                                                      .Cast (ToMapRecursive)
-                                                                          : obj is ICollection cc
-                                                                                ? meta.Map (cc.Cast<object>().Select ((e, i) => new Meta (meta, i + 1).Map (e)))
-                                                                                      .Cast (ToMapRecursive)
-                                                                                : throw new ArrayTypeMismatchException();
-
-        static void ConvertMapToValueRangesRecursive(RecursiveMap<string> data, ICollection<ValueRange> list)
+        void ToRanges(object obj, MappedClassAttribute type, string parentName, ICollection<ValueRange> results)
         {
-            foreach (var map in data.Collection.Where (e => e.Meta.ContentType == ContentType.Sheet))
-                ConvertMapToValueRangesRecursive (map, list);
-            if (data.Collection.Any (element => element.Meta.ContentType != ContentType.Sheet))
-                list.Add (new ValueRangeBuilder (FirstCellOfValueRange).ToValueRange (data));
+            string name = parentName.JoinSheetNames (type.SheetName);
+            foreach (var a in type.SheetsFields)
+                obj.UnwrapField (name, a).ForEachValue (o => ToRanges (o.Value, a.FrontType, o.Name, results)); // todo - get rid of the shit
+            if (type.CompactFields.Count == 0)
+                return;
+
+            (int x1, int y1) = SpreadsheetsUtility.ReadA1 (FirstCell);
+            var context = new ArrayAssemblingContext ();
+            var size = DoCollection (context, obj, type, 0);
+            context.Values[0][0] = context.SB.ToString ();
+            results.Add (new ValueRange
+                         {
+                             Values         = context.Values,
+                             MajorDimension = "COLUMNS",
+                             Range          = $"'{name}'!{FirstCell}:{SpreadsheetsUtility.WriteA1 (size.X2 + x1, size.Y2 + y1)}",
+                         });
         }
 
-        static RecursiveMap<string> MapSheetsRecursive(Predicate<RecursiveMap<string>> func, Meta meta, List<string> sheets)
+        MapRegion DoCollection(ArrayAssemblingContext context, object obj, MappedClassAttribute type, int repeats, bool vertical = true)
         {
-            return KeepSheetsOnly(meta.MapFieldsOfClass (_ => string.Empty), sheets)
-                      .Cast (func.FillIndicesRecursive)
-                      .Cast ((_, m) => MapSheetsRecursive (func, m, sheets));
-        }
+            if (repeats == 0 && type is null)
+                return WriteValue (context, obj);
 
-        static RecursiveMap<string> KeepSheetsOnly(RecursiveMap<string> target, List<string> list)
-        {
-            List<RecursiveMap<string>> resultCollection = new List<RecursiveMap<string>> ();
-            var onTrue  = new List<RecursiveMap<string>> ();
-            var onFalse = new List<RecursiveMap<string>> ();
-            foreach (var element in target.Collection)
-                (element.Meta.ContentType == ContentType.Sheet ? onTrue : onFalse).Add (element);
+            var region = new MapRegion {X1 = context.X, Y1 = context.Y};
+            context.SB.Append (vertical ? '[' : '(');
 
-            if (onFalse.Count > 0)
+            var cc = repeats == 0
+                         ? type.CompactFields.Select (e => DoCollection (context, e.Field.GetValue (obj), e.FrontType, e.DimensionCount))
+                         : obj is ICollection c
+                             ? c.Cast<object> ().Select (e => DoCollection (context, e, type, repeats - 1, repeats == 0 || !vertical))
+                             : throw new Exception ();
+            foreach (var result in cc)
             {
-                var name = target.Meta.FullName;
-                list.Add (name);
-                resultCollection.Add (new RecursiveMap<string> ($"'{name}'!{FirstCellOfValueRange}:ZZ999", Meta.Point));
+                region.Add (result);
+                context.X = vertical ? region.X1 : region.X2 + 1;
+                context.X = vertical ? region.Y2 + 1 : region.Y1;
             }
-
-            resultCollection.AddRange (onTrue.Select (e => KeepSheetsOnly(e, list)));
-            return new RecursiveMap<string> (resultCollection, target.Meta);
+            context.SB.Append ('.');
+            return region;
         }
 
-        static RecursiveMap<string> JoinRecursive(IReadOnlyDictionary<string, IList<RecursiveMap<string>>> values, RecursiveMap<string> map)
+        MapRegion WriteValue(ArrayAssemblingContext context, object value)
         {
-            var elements = map.Collection.ToList ();
-            var compactElementsSheet = elements.FirstOrDefault (x => x.IsValue);
-            if (compactElementsSheet is null)
-                return map.Meta.Map (elements.Select (e => JoinRecursive(values, e)));
-
-            elements.Remove (compactElementsSheet);
-            var compactElements = values[compactElementsSheet.Value];
-            int sheetIndex = -1;
-            int compactIndex = -1;
-            return map.Meta.Map (map.Meta.FrontType.FieldsMap ().Select (f => !f.GetArrayTypes().Last().GetMappedAttribute().IsCompact
-                                                                                  ? JoinRecursive (values, elements[++sheetIndex])
-                                                                                  : compactElements[++compactIndex]));
+            context.SB.Append ('*');
+            for (int i = context.Values.Count; i < context.X + 1; i++)
+                context.Values.Add(new List<object> ());
+            for (int i = context.Values[context.X].Count; i < context.Y; i++)
+                context.Values[context.X].Add(null);
+            context.Values[context.X][context.Y] = serializer.Serialize (value);
+            return new MapRegion {X2 = context.X, Y2 = context.Y};
         }
 
-        object UnmapObjectRecursive(Type type, RecursiveMap<string> ranges)
+#endregion
+#region Read: making the request
+
+        void FindCollections(HashSet<string> available, MappedClassAttribute type, string name, List<RequestedObject> results)
         {
-            var result = Activator.CreateInstance(type);
-            using var maps = ranges.Collection.GetEnumerator (); //  here we can find out that number of mapped fields changed
-            foreach (var field in  type.FieldsMap())
-                field.SetValue (result,
-                                maps.MoveNext () && maps.Current != null
-                                    ? maps.Current.IsValue
-                                          ? serializer.Deserialize (field.FieldType, maps.Current.Value)
-                                          : field.GetMappedAttribute ().DimensionCount == 0
-                                              ? UnmapObjectRecursive (field.FieldType, maps.Current)
-                                              : UnmapCollectionRecursive (field.GetArrayTypes(), maps.Current)
-                                    : throw new Exception ("sadly, the map is gone"));
-            return result;
+            var thisName = name.JoinSheetNames (type.SheetName);
+            foreach (var field in type.SheetsFields.Where (x => x.DimensionCount == 0))
+                FindCollections (available, field.FrontType, thisName, results);
+
+            var arrays = type.SheetsFields.Where (x => x.DimensionCount == 0).ToArray();
+            results.AddRange (arrays.SelectMany (f => GetValidIndices (available, f.FrontType, thisName, f.DimensionCount)));
         }
 
-        object UnmapCollectionRecursive(IReadOnlyList<Type> types, RecursiveMap<string> map)
+        IEnumerable<RequestedObject> GetValidIndices(HashSet<string> available, MappedClassAttribute type, string name, int dimensions)
         {
+            var indices = Enumerable.Repeat(1, dimensions).ToArray(); // start indexing with 1, not 0
+            int index = 0;
+
+            while (index >= 0)
+            {
+                RequestedObject result;
+                if (available.IsSupersetOf ((result = new RequestedObject(type, name, indices)).RequestedSheets))
+                {
+                    yield return result;
+                    index          =  dimensions - 1;
+                    indices[index] += 1;
+                }
+                else
+                {
+                    indices[index - 1] += 1;
+                    indices[index--]   =  1;
+                }
+            }
+        }
+
+        string WholeSheetCellRange(string sheetName) => $"'{sheetName}'!{FirstCell}:ZZ999";
+        string TrimCellRange(string valueRange) => valueRange.Split ('!')[0].Trim ('\'');
+
+#endregion
+#region Read: assembling the object from ValueRange[]
+
+        object GroupSheets(List<RequestedObject> allRq, Dictionary<string, IList<IList<object>>> values, RequestedObject[] requests, IReadOnlyList<Type> types)
+        {
+            if (types.Count == 1)
+                return AssembleSheet (requests[0].Type, requests[0].ParentName, allRq, values); // i expect to have exactly 1 request in this case
+
+            var nextStepTypes = types.Skip (1).ToArray ();
+            int indexNumber = requests[0].Index.Length - nextStepTypes.Length;
             var result = Activator.CreateInstance (types[0]);
-            var addMethod = addMethodInfo.MakeGenericMethod (types[1]);
-            var elements = types.Count > 2
-                               ? map.Collection.Select (element => UnmapCollectionRecursive (types.Skip (1).ToArray (), element))
-                               : map.Collection.Select (element => UnmapObjectRecursive (types[1], element));
-            foreach (var element in elements)
-                addMethod.Invoke (result, new[] {element});
+            result.AddContent (nextStepTypes[0],
+                               requests.GroupBy (x => x.Index[indexNumber]).OrderBy (x => x.Key)
+                                       .Select (x => GroupSheets (allRq, values, x.ToArray (), nextStepTypes)));
             return result;
         }
+
+        object AssembleSheet(MappedClassAttribute type, string name, List<RequestedObject> requests, Dictionary<string, IList<IList<object>>> values)
+        {
+            var thisName = name.JoinSheetNames (type.SheetName);
+            var result = Activator.CreateInstance (type.Type);
+            foreach (var f in type.SheetsFields)
+                f.Field.SetValue (result, f.DimensionCount == 0
+                                              ? AssembleSheet (f.FrontType, thisName, requests, values)
+                                              : GroupSheets (requests, values, requests.Where (x => x.Type.Equals (f.FrontType)).ToArray (), f.ArrayTypes));
+            if (type.CompactFields.Count > 0)
+                DeserializeValueRange (result, values[thisName], type);
+            return result;
+        }
+
+        void DeserializeValueRange(object parent, IList<IList<object>> values, MappedClassAttribute type)/* position? context? */
+        {
+            // first 3 - method1, last 2 - method2
+
+            // SHEETS
+                // sheet array  >> AssembleSheetGroup
+                // sheet        >> AssembleSheet
+            // COMPACT
+                // object/array >> move pointer (or split string?)
+                // value        >> read
+                // todo -  do shit
+        }
+
+#endregion
     }
 }

@@ -19,7 +19,7 @@ namespace RecursiveMapper
 
         static string NotSupportedTypeMessage(Type type) => $"Value type {type.Name} is not supported by default value serializer.";
 
-        public string Serialize<T>(T target) => target switch
+        public string Serialize(object target) => target switch
                                                             {
                                                                 int i      => i.ToString (),
                                                                 bool b     => b ? "true" : "false",

@@ -4,29 +4,29 @@ using System.Linq;
 
 namespace RecursiveMapper
 {
-    class RecursiveMap<T>
+    class RecursiveMap<T> // todo  - remove legacy
     {
         public T Value { get; }
         public IEnumerable<RecursiveMap<T>> Collection { get; }
-        public Meta Meta { get; }
+        public string Name { get; }
         public bool IsValue { get; }
 
-        public RecursiveMap(IEnumerable<RecursiveMap<T>> collection, Meta meta)
+        public RecursiveMap(T value, string name)
         {
-            Meta       = meta;
-            Collection = collection;
-            IsValue    = false;
-        }
-
-        public RecursiveMap(T value, Meta meta)
-        {
-            Meta    = meta;
+            Name    = name;
             Value   = value;
             IsValue = true;
         }
 
-        public RecursiveMap<T2> Cast<T2>(Func<T, Meta, RecursiveMap<T2>> func) => IsValue
-                                                                                      ? func.Invoke (Value, Meta)
-                                                                                      : new RecursiveMap<T2> (Collection.Select (e => e.Cast (func)), Meta);
+        public RecursiveMap(IEnumerable<RecursiveMap<T>> collection, string name)
+        {
+            Name       = name;
+            Collection = collection;
+            IsValue    = false;
+        }
+
+        public RecursiveMap<T2> Cast<T2>(Func<T, string, RecursiveMap<T2>> func) => IsValue
+                                                                                      ? func.Invoke (Value, Name)
+                                                                                      : new RecursiveMap<T2> (Collection.Select (e => e.Cast (func)), Name);
     }
 }
