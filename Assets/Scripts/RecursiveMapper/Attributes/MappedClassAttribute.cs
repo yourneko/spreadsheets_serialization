@@ -27,12 +27,16 @@ namespace RecursiveMapper
 
         internal void CacheMeta(Type type)
         {
+            if (Initialized) return;
+
             Initialized = true;
             var allFields = type.GetFields (BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                                 .Select (field => field.MapAttribute ())
                                 .Where (x => x != null)
                                 .ToArray ();
-            SheetsFields = allFields.Where (x => x.Content == ContentType.Sheet).ToArray ();
+            SheetsFields = string.IsNullOrEmpty (SheetName)
+                               ? throw new Exception ("Compact classes can't contain fields of Sheet content type.")
+                               : allFields.Where (x => x.Content == ContentType.Sheet).ToArray ();
             CompactFields = allFields.Where (x => x.Content != ContentType.Sheet)
                                      .OrderBy (x => x.Position)
                                      .ToArray ();

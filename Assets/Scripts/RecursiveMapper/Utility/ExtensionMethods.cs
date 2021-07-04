@@ -9,6 +9,7 @@ namespace RecursiveMapper
     static class ExtensionMethods
     {
         static readonly MethodInfo AddMethodInfo = typeof(ICollection<>).GetMethod ("Add", BindingFlags.Instance | BindingFlags.Public);
+
         public static MappedAttribute MapAttribute(this FieldInfo field)
         {
             var attribute = (MappedAttribute)Attribute.GetCustomAttribute (field, typeof(MappedAttribute));
@@ -25,27 +26,40 @@ namespace RecursiveMapper
             return attribute;
         }
 
-        public static void AddContent(this object parent, Type type, IEnumerable<object> children)
-        {
-            var addMethod = AddMethodInfo.MakeGenericMethod (type);
-            foreach (var element in children)
-                addMethod.Invoke (parent, new[] {element});
-        }
-
-        public static Dictionary<string, object> ToCollection(this object o, string name, int repeats)  // todo - use wider
+        public static IEnumerable<(string name, object  obj)> ToCollection(this object o, string name, int repeats)
         {
             return repeats == 0
-                       ? new Dictionary<string, object>{{name,  o}}
-                       : (o is ICollection c
+                       ? new[]{(name,  o)}
+                       : o is ICollection c
                               ? repeats > 1
                                     ? c.Cast<object> ().SelectMany ((e, i) => ToCollection (e, $"{name} {i}", repeats - 1))
-                                    : c.Cast<object> ().Select ((e, i) => new KeyValuePair<string, object> ($"{name} {i}", e))
-                              : throw new Exception ())
-                      .ToDictionary (pair => pair.Key, pair => pair.Value);
+                                    : c.Cast<object> ().Select ((e, i) => ($"{name} {i}", e))
+                              : throw new Exception ();
         }
 
-        public static string JoinSheetNames(this string parent, string child) => child.Contains ("{0}")
-                                                                                     ? string.Format (child, parent)
-                                                                                     : parent + child;
+        public static string JoinSheetNames(this string parent, string child) => child.Contains ("{0}") ? string.Format (child, parent) : parent + child;
+
+        public static Type GetGenericParameter(this Type t) => t.GetTypeInfo ().GetInterfaces ()
+                                                                .FirstOrDefault (i => i.IsGenericType && i.GetGenericTypeDefinition () == typeof(IEnumerable<>))
+                                                               ?.GetGenericArguments ()[0];
+
+        public static Action<object> AddContent(this object parent, Type type)
+        {
+            var addMethod = AddMethodInfo.MakeGenericMethod (type);
+            return element => addMethod.Invoke (parent, new[] {element});
+        }
+
+        public static void FindValidArrayIndices(this Predicate<int[]> validate, int count)   // IMPORTANT: indices start from 1, not 0
+        {
+            var indices = Enumerable.Repeat (1, count + 1).ToArray (); // 0 element is a pointer to current value.
+            while (indices[0] >= 0)
+            {
+                if (validate (indices.Skip(1).ToArray()))
+                    indices[0] = indices.Length - 1;
+                else
+                    indices[indices[0]--] = 1;
+                indices[indices[0]] += 1;
+            }
+        }
     }
 }

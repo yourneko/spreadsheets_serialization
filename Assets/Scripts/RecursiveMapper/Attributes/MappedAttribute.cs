@@ -25,14 +25,13 @@ namespace RecursiveMapper
 
         internal void CacheMeta(FieldInfo field)
         {
-            Initialized = true;
+            if (Initialized) return;
 
-            Field = field;
+            Initialized = true;
+            Field       = field;
             var types = new List<Type> {field.FieldType};
             for (int i = 0; i < DimensionCount; i++)
-                types.Add (types[i].GetTypeInfo ().GetInterfaces ()
-                                   .FirstOrDefault (t => t.IsGenericType && t.GetGenericTypeDefinition () == typeof(IEnumerable<>))
-                                  ?.GetGenericArguments ()[0]);
+                types.Add (types[i].GetGenericParameter());
             ArrayTypes = types;
             FrontType  = ArrayTypes[DimensionCount].MapAttribute ();
             Content = FrontType is null
