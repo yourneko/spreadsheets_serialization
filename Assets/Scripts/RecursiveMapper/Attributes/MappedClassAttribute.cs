@@ -15,7 +15,7 @@ namespace RecursiveMapper
         internal bool Initialized { get; private set; }
         internal IReadOnlyList<MappedAttribute> CompactFields { get; private set; }
         internal IReadOnlyList<MappedAttribute> SheetsFields { get; private set; }
-        internal IReadOnlyList<string> RequiredSheets => requiredSheets ??= SheetsFields.Where (x => x.DimensionCount == 0)
+        internal IReadOnlyList<string> RequiredSheets => requiredSheets ??= SheetsFields.Where (x => x.Rank == 0)
                                                                                         .SelectMany (x => x.FrontType.RequiredSheets)
                                                                                         .Select (SheetName.JoinSheetNames).ToArray ();
 
