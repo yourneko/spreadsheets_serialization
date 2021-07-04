@@ -76,10 +76,10 @@ namespace RecursiveMapper
 #region Google Spreadsheets A1 notation
 
         // IMPORTANT! Indices 'x' and 'y' are counted from 0. The point (0,0) corresponds to A1 cell
-        public static (int x, int y) ReadA1(string a1) => (Evaluate (a1.Where (char.IsLetter).Select (char.ToUpperInvariant), '@', A1_LETTERS_COUNT),
-                                                            Evaluate (a1.Where (char.IsDigit), '0', 10));
+        public static Pair ReadA1(string a1) => new Pair (Evaluate (a1.Where (char.IsLetter).Select (char.ToUpperInvariant), '@', A1_LETTERS_COUNT),
+                                                          Evaluate (a1.Where (char.IsDigit), '0', 10));
 
-        public static string WriteA1(int x, int y) => new string(ToLetters (x).ToArray()) + (y + 1);
+        public static string WriteA1(Pair a1) => new string(ToLetters (a1.X).ToArray()) + (a1.Y + 1);
 
         static IEnumerable<char> ToLetters(int number) => number < A1_LETTERS_COUNT
                                                               ? new[]{(char)('A' + number)}

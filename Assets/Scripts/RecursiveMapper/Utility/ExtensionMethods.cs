@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using UnityEngine;
 
 namespace RecursiveMapper
 {
@@ -38,10 +39,6 @@ namespace RecursiveMapper
         }
 
         public static string JoinSheetNames(this string parent, string child) => child.Contains ("{0}") ? string.Format (child, parent) : parent + child;
-
-        public static Type GetGenericParameter(this Type t) => t.GetTypeInfo ().GetInterfaces ()
-                                                                .FirstOrDefault (i => i.IsGenericType && i.GetGenericTypeDefinition () == typeof(IEnumerable<>))
-                                                               ?.GetGenericArguments ()[0];
 
         public static Action<object> AddContent(this object parent, Type type)
         {

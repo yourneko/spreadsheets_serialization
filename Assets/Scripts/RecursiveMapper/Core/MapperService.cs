@@ -98,54 +98,49 @@ namespace RecursiveMapper
             if (type.CompactFields.Count == 0)
                 return;
 
-            (int x1, int y1) = SpreadsheetsUtility.ReadA1 (FirstCell);
             var context = new ValueRangeAssembleContext ();
-            (int x2, int y2)     = DoCollection (context, obj, type, 0);
+            var size     = DoCollection (context, obj, type, 0);
             context.Values[0][0] = context.Sb.ToString ();
             results.Add (new ValueRange
                          {
                              Values         = context.Values,
                              MajorDimension = "COLUMNS",
-                             Range          = $"'{name}'!{FirstCell}:{SpreadsheetsUtility.WriteA1 (x2 + x1, y2 + y1)}",
+                             Range          = $"'{name}'!{FirstCell}:{SpreadsheetsUtility.WriteA1 (size.Add(SpreadsheetsUtility.ReadA1 (FirstCell)))}",
                          });
         }
 
-        (int x, int y) DoCollection(ValueRangeAssembleContext context, object obj, MappedClassAttribute type, int repeats, bool vertical = true)
+        Pair DoCollection(ValueRangeAssembleContext context, object obj, MappedClassAttribute type, int repeats, bool vertical = true)
         {
             if (repeats == 0 && type is null)
                 return WriteValue (context, obj);
 
-            (int x1, int y1, int x2, int y2) rect = (context.Pos.x, context.Pos.y, -1, -1);
-            context.Sb.Append (vertical ? '[' : '(');
+            var first = context.Pos;
+            var last = new Pair (-1, -1);
+            context.Sb.Append (vertical ? '[' : '(');         // todo - possibly can remove Pair from context
 
             var collection = repeats == 0
                                  ? type.CompactFields.Select (e => DoCollection (context, e.Field.GetValue (obj), e.FrontType, e.DimensionCount))
                                  : obj is ICollection c
                                      ? c.Cast<object> ().Select (e => DoCollection (context, e, type, repeats - 1, repeats == 0 || !vertical))
                                      : throw new Exception ();
-            foreach ((int x, int y) in collection)
-            {
-                rect        = (rect.x1, rect.y1, Math.Max (rect.x2, x), Math.Max (rect.y2, y));
-                context.Pos = (vertical ? rect.x1 : Math.Max (rect.x2 + 1, rect.x1), vertical ? Math.Max (rect.y2 + 1, rect.y1) : rect.y1);
-            }
-
+            foreach (var pair in collection)
+                context.Pos = Pair.NextPosition (first, (last = last.Join (pair)), vertical);
             context.Sb.Append ('.');
-            return (rect.x2, rect.y2);
+            return last;
         }
 
-        (int x, int y) WriteValue(ValueRangeAssembleContext context, object value)
+        Pair WriteValue(ValueRangeAssembleContext context, object value)
         {
             context.Sb.Append ('*');
-            if (context.Values.Count == context.Pos.x)
+            if (context.Values.Count == context.Pos.X)
                 context.Values.Add (new List<object> ());
-            for (int i = context.Values[context.Pos.x].Count; i < context.Pos.y; i++)
-                context.Values[context.Pos.x].Add (null);
-            context.Values[context.Pos.x].Add (serializer.Serialize (value));
+            for (int i = context.Values[context.Pos.X].Count; i < context.Pos.Y; i++)
+                context.Values[context.Pos.X].Add (null);
+            context.Values[context.Pos.X].Add (serializer.Serialize (value));
             return context.Pos;
         }
 
 #endregion
-
 #region Read
 
         void FindCollections(HashSet<string> available, List<RequestedObject> results, MappedClassAttribute type, string name)
@@ -192,67 +187,47 @@ namespace RecursiveMapper
                 return result;
 
             var sheet = values[type.SheetName];
-            var context = new ReadValueRangeContext
-                          {
-                              b = new ValueBuffer (i => type.CompactFields[i], i => type.CompactFields[i].ArrayTypes[0])
-                                  {
-                                      IsObject = true, Rect = (1, 0, 0, 0), Horizontal = true, TargetObject = result,
-                                  },
-                              getValue = (f, x, y) => serializer.Deserialize(f.FrontType.Type, (string)sheet[x][y])
-                          };
-            foreach (var c in (string)sheet[0][0])
-                context.DoChar (c);
+            string S(Pair pos) => (string)sheet[pos.X][pos.Y];
+            object D(ValueBuffer b) => serializer.Deserialize (b.Field.FrontType.Type, S (Pair.NextPosition (b.First, b.Last, !b.Horizontal)));
+            ((string)sheet[0][0]).Aggregate (new ValueBuffer (i => type.CompactFields[i], i => type.CompactFields[i].ArrayTypes[0])
+                                             {IsObject = true, First = new Pair (1, 0), Horizontal = true, TargetObject = result},
+                                             (b, c) => c switch
+                                                       {
+                                                           '.' => FinishObject (b),
+                                                           '*' => ReadValue (D(b), b),
+                                                           '(' => CreateObject (true, b),
+                                                           '[' => CreateObject (false, b),
+                                                           _   => b
+                                                       });
             return result;
         }
+
+        static ValueBuffer FinishObject(ValueBuffer b)
+        {
+            b.Back.Last = b.Back.Last.Join (b.Last);
+           return b.Back;
+        }
+
+        static ValueBuffer ReadValue(object value, ValueBuffer b)
+        {
+            (b.IsObject ? b.addToObj : b.addToArray).Invoke (value);
+            b.Last = b.Last.Join (Pair.NextPosition (b.First, b.Last, !b.Horizontal));
+            return b;
+        }
+
+        static ValueBuffer CreateObject(bool horizontal, ValueBuffer b) => new ValueBuffer
+                                                                           {
+                                                                               IsObject     = b.IsObject
+                                                                                                  ? b.getNextField (b.Index).DimensionCount == 0
+                                                                                                  : b.Field.DimensionCount == (b.Depth + 1),
+                                                                               Field        = b.IsObject ? b.getNextField (b.Index) : b.Field,
+                                                                               Depth        = b.IsObject ? 0 : b.Depth + 1,
+                                                                               TargetObject = b.NextObject (),
+                                                                               Back         = b,
+                                                                               First        = Pair.NextPosition (b.First, b.Last, !b.Horizontal),
+                                                                               Horizontal   = horizontal,
+                                                                           };
 #endregion
-    }
-
-    class ReadValueRangeContext    // todo - probably can put back in the original method
-    {
-        public Func<MappedAttribute, int, int, object> getValue;
-        public ValueBuffer b;
-        private int x = 1, y;
-
-        public void DoChar(char c)
-        {
-            switch (c)
-            {
-                case '.':
-                    b.Back.Rect = (b.Back.Rect.x1, b.Back.Rect.y1, Math.Max (b.Back.Rect.x2, b.Rect.x2), Math.Max (b.Back.Rect.y2, b.Rect.y2));
-                    b           = b.Back;
-                    break;
-                case '*':
-                    Add (getValue(b.Field, x, y));
-                    b.Rect = (b.Rect.x1, b.Rect.y1, Math.Max (b.Rect.x2, x), Math.Max (b.Rect.y2, y));
-                    break;
-                case '(': case '[':
-                    var result = new ValueBuffer
-                                 {
-                                     IsObject     = b.IsObject ? b.getNextField (b.Index).DimensionCount == 0 : b.Field.DimensionCount == (b.Depth + 1),
-                                     Field        = b.IsObject ? b.getNextField (b.Index) : b.Field,
-                                     Depth        = b.IsObject ? 0 : b.Depth + 1,
-                                     TargetObject = Activator.CreateInstance (b.getNextChildType (b.Index)),
-                                     Back         = b,
-                                     Rect         = (x, y, -1, -1),
-                                     Horizontal   = c == '(',
-                                 };
-                    Add ((b = result).TargetObject);
-                    break;
-                default: return;
-            }
-
-            x = b.Horizontal ? Math.Max (b.Rect.x1, b.Rect.x2 + 1) : b.Rect.x1;
-            y = b.Horizontal ? b.Rect.y1 : Math.Max (b.Rect.y1, b.Rect.y2 + 1);
-        }
-
-        void Add(object child)
-        {
-            if (b.IsObject)
-                b.Field.FrontType.CompactFields[b.Index].Field.SetValue (b.TargetObject, child);
-            else
-                b.TargetObject.AddContent (b.Field.ArrayTypes[b.Depth]);
-            b.Index += 1;
-        }
     }
 
     class ValueBuffer
@@ -260,16 +235,27 @@ namespace RecursiveMapper
         public MappedAttribute Field;
         public int Depth, Index;
         public object TargetObject;
-        public (int x1, int y1, int x2, int y2) Rect;
+        public Pair First, Last = new Pair(-1, -1);
         public ValueBuffer Back;
         public bool Horizontal, IsObject;
+
         public readonly Func<int, MappedAttribute> getNextField;
-        public readonly Func<int, Type> getNextChildType;
+        private readonly Func<int, Type> getNextChildType;
+        public readonly Action<object> addToObj, addToArray;
 
         public ValueBuffer(Func<int, MappedAttribute> getField = null, Func<int, Type> getChild = null)
         {
             getNextField     = getField ?? (i => Field.FrontType.CompactFields[i]);
             getNextChildType = getChild ?? (_ => Field.ArrayTypes[Depth]);
+            addToObj         = child => getNextField (Index++).Field.SetValue (TargetObject, child);
+            addToArray       = TargetObject.AddContent (getNextChildType(Index++));
+        }
+
+        public object NextObject()
+        {
+            var result = Activator.CreateInstance (getNextChildType (Index));
+            (IsObject ? addToObj : addToArray).Invoke (result);
+            return result;
         }
     }
 
@@ -277,7 +263,7 @@ namespace RecursiveMapper
     {
         public readonly IList<IList<object>> Values = new List<IList<object>> (new List<object>[1]);
         public readonly StringBuilder Sb = new StringBuilder ();
-        public (int x, int y) Pos = (1, 0);
+        public Pair Pos = new Pair(1, 0);
     }
 
     class RequestedObject
@@ -296,5 +282,14 @@ namespace RecursiveMapper
             Index      = indices;
             OwnName    = Index.Length == 0 ? name : $"{name} {string.Join (" ", Index)}";
         }
+    }
+
+    readonly struct Pair
+    {
+        public readonly int X, Y;
+        public Pair(int x, int y) { X = x; Y = y; }
+        public Pair Join(Pair other) => new Pair (Math.Max (X, other.X), Math.Max (Y, other.Y));
+        public Pair Add(Pair other) => new Pair (X + other.X, Y + other.Y);
+        public static Pair NextPosition(Pair first, Pair last, bool isY) =>  first.Join (new Pair (isY ? -1  : last.X + 1 , isY ? last.Y + 1: -1 ));
     }
 }

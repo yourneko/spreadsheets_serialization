@@ -15,7 +15,6 @@ namespace RecursiveMapper
         internal bool Initialized { get; private set; }
         internal IReadOnlyList<MappedAttribute> CompactFields { get; private set; }
         internal IReadOnlyList<MappedAttribute> SheetsFields { get; private set; }
-
         internal IReadOnlyList<string> RequiredSheets => requiredSheets ??= SheetsFields.Where (x => x.DimensionCount == 0)
                                                                                         .SelectMany (x => x.FrontType.RequiredSheets)
                                                                                         .Select (SheetName.JoinSheetNames).ToArray ();
@@ -27,8 +26,6 @@ namespace RecursiveMapper
 
         internal void CacheMeta(Type type)
         {
-            if (Initialized) return;
-
             Initialized = true;
             var allFields = type.GetFields (BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                                 .Select (field => field.MapAttribute ())
