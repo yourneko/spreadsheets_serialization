@@ -4,16 +4,10 @@ using UnityEngine;
 
 namespace Example
 {
-    [Serializable, MappedClass]
-    public class SubclassData
+    [Serializable, MapClass] public class SubclassData
     {
-        [Mapped (0)]
-        [SerializeField] string name;
-
-        [Mapped (1)]
-        [SerializeField] int subvalue;
-
-        [Mapped (2, 1)]
-        [SerializeField] StructData[] keyValueArray;
+        [MapField, SerializeField] string name;
+        [MapField, SerializeField] int subvalue;
+        [MapField, SerializeField] StructData[] keyValueArray;
     }
 }

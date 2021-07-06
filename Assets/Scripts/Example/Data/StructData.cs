@@ -3,10 +3,9 @@ using RecursiveMapper;
 
 namespace Example
 {
-    [Serializable, MappedClass]
-    public class StructData
+    [Serializable, MapClass] public class StructData
     {
-        [Mapped (0)] public string key;
-        [Mapped (1)] public string value;
+        [MapField, MapPlacementAttribute (0)] public string key;
+        [MapField] public string value;
     }
 }

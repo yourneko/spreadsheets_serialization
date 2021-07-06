@@ -5,27 +5,38 @@ using System.Reflection;
 
 namespace RecursiveMapper
 {
+    /// <summary>
+    /// Marks classes intended to be serialized.
+    /// </summary>
     [AttributeUsage (AttributeTargets.Class)]
-    public class MappedClassAttribute : Attribute
+    public class MapClassAttribute : Attribute
     {
         public readonly string SheetName;
-        internal readonly Type Type;
         string[] requiredSheets;
 
         internal bool Initialized { get; private set; }
-        internal IReadOnlyList<MappedAttribute> CompactFields { get; private set; }
-        internal IReadOnlyList<MappedAttribute> SheetsFields { get; private set; }
+        internal Type Type { get; private set; }
+        internal IReadOnlyList<MapFieldAttribute> CompactFields { get; private set; }
+        internal IReadOnlyList<MapFieldAttribute> SheetsFields { get; private set; }
+        internal V2Int Size { get; private set; }
+
         internal IReadOnlyList<string> RequiredSheets => requiredSheets ??= SheetsFields.Where (x => x.Rank == 0)
                                                                                         .SelectMany (x => x.FrontType.RequiredSheets)
                                                                                         .Select (SheetName.JoinSheetNames).ToArray ();
 
-        public MappedClassAttribute(string sheetName = null)
+        /// <summary>
+        /// Marks classes intended to be serialized.
+        /// </summary>
+        /// <param name="sheetName">Types with a sheet name always occupy the whole sheet.</param>
+        /// <remarks>Avoid loops in hierarchy of types. It will cause the stack overflow.</remarks>
+        public MapClassAttribute(string sheetName = null)
         {
             SheetName = sheetName;
         }
 
         internal void CacheMeta(Type type)
         {
+            Type        = type;
             Initialized = true;
             var allFields = type.GetFields (BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                                 .Select (field => field.MapAttribute ())
@@ -33,10 +44,11 @@ namespace RecursiveMapper
                                 .ToArray ();
             SheetsFields = string.IsNullOrEmpty (SheetName)
                                ? throw new Exception ("Compact classes can't contain fields of Sheet content type.")
-                               : allFields.Where (x => x.Content == ContentType.Sheet).ToArray ();
-            CompactFields = allFields.Where (x => x.Content != ContentType.Sheet)
-                                     .OrderBy (x => x.Position)
+                               : allFields.Where (x => x.FrontType != null && !string.IsNullOrEmpty(x.FrontType.SheetName)).ToArray ();
+            CompactFields = allFields.Where (x => x.FrontType is null || string.IsNullOrEmpty(x.FrontType.SheetName))
+                                     .OrderBy (x => x.SortOrder)
                                      .ToArray ();
+            Size = CompactFields.Aggregate(V2Int.Zero, (s, f) => s.JoinRight(f.GetSize(s).Size));
         }
     }
 }

@@ -5,28 +5,27 @@ using UnityEngine;
 
 namespace Example
 {
-    [Serializable, MappedClass ("ExampleSheet")]
+    [Serializable, MapClass ("ExampleSheet")]
     public class ExampleData
     {
-        [Mapped (5, 1)]
-        [SerializeField] string[] ss1;
+        [MapField, MapPlacementAttribute (5), SerializeField]
+        string[] ss1;
 
-        [Mapped (3, 1)]
-        [SerializeField] List<string> ss2;
+        [MapField, MapPlacementAttribute (3), SerializeField]
+        List<string> ss2;
 
-        [Mapped (2)]
-        [SerializeField] StructData keyValueArray;
+        [MapField, MapPlacementAttribute (2), SerializeField]
+        StructData keyValueArray;
 
-        [Mapped (0)]
-        [SerializeField] string s;
+        [MapField, MapPlacementAttribute (0), SerializeField]
+        string s;
 
-        [Mapped (1)]
-        [SerializeField] int i;
+        [MapField, MapPlacementAttribute (4), SerializeField]
+        int i;
 
-        [Mapped (4, 2)]
-        private readonly int[][] intGrid = { new[] { 1, 2, 3 }, new[] { 4, 5, 6, }, new[] { 7, 8, 9 } };
+        [MapField(3, 3), MapPlacementAttribute (5)] private readonly int[][] intGrid = {new[] {1, 2, 3}, new[] {4, 5, 6,}, new[] {7, 8, 9}};
 
-        [Mapped (6, 1)]
-        [SerializeField] List<SubclassData> subList;
+        [MapField, MapPlacementAttribute (6), SerializeField]
+        List<SubclassData> subList;
     }
 }
