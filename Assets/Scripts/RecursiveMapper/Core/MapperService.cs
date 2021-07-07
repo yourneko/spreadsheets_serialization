@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -25,6 +24,7 @@ namespace RecursiveMapper
     {
         const string FirstCell = "A2";
         static string MaxCellRange(string sheet) => $"'{sheet}'!{FirstCell}:ZZ999";
+        static V2Int FirstCellV2 => SpreadsheetsUtility.ReadA1 (FirstCell);
 
         private readonly SheetsService service;
         private readonly IValueSerializer serializer;
@@ -66,7 +66,7 @@ namespace RecursiveMapper
         public Task<bool> WriteAsync<T>(T obj, string spreadsheet, string sheet = "")
         {
             var valueRangeList = new List<ValueRange> ();
-            ToRanges (obj, typeof(T).MapAttribute (), sheet, valueRangeList);
+            MakeValueRanges (obj, typeof(T).MapAttribute (), sheet, valueRangeList);
             return service.WriteRangesAsync (spreadsheet, valueRangeList);
         }
 
@@ -87,49 +87,43 @@ namespace RecursiveMapper
             service.Dispose ();
         }
 
-        void ToRanges(object obj, MapClassAttribute type, string parentName, ICollection<ValueRange> results)
+        void MakeValueRanges(object obj, MapClassAttribute type, string parentName, ICollection<ValueRange> results)
         {
             string name = parentName.JoinSheetNames (type.SheetName);
             foreach (var field in type.SheetsFields)
-            foreach ((string s, object o) in field.Field.GetValue (obj).ToCollection (name, field.Rank))
-                ToRanges (o, field.FrontType, s, results);
+            foreach ((object o, string s) in (field.Field.GetValue (obj), name).UnwrapArray (field, 1, (s, _, i) => $"{s} {i}"))
+                MakeValueRanges (o, field.FrontType, s, results);
 
             if (type.CompactFields.Count == 0)
                 return;
 
-            IList<IList<object>> values = new List<IList<object>> ();
-            var size = DoRange (values, obj, type, 0, new V2Int (0, 0), false);
+            IList<IList<object>> data = new List<IList<object>> ();
+            WriteValueRange (data, type, obj, FirstCellV2);
             results.Add (new ValueRange
                          {
-                             Values         = values,
+                             Values = data,
                              MajorDimension = "COLUMNS",
-                             Range          = $"'{name}'!{FirstCell}:{SpreadsheetsUtility.WriteA1 (size.Add (SpreadsheetsUtility.ReadA1 (FirstCell)))}",
+                             Range = $"'{name}'!{FirstCell}:{SpreadsheetsUtility.WriteA1 (new V2Int (data.Count, data.Max (x => x.Count)).Add (FirstCellV2))}",
                          });
         }
 
-        V2Int DoRange(IList<IList<object>> values, object obj, MapClassAttribute type, int i, V2Int pos, bool vertical)
+        void WriteValueRange(IList<IList<object>> values, MapClassAttribute type, object source, V2Int fromPoint)
         {
-            if (i == 0 && type is null)
-                return WriteValue (values, obj, pos);
-
-            var v = new V2Int (-1, -1); // todo - rewrite, as for now i know all positions in the world
-            v = i == 0
-                    ? type.CompactFields.Aggregate (
-                        v, (v2, f) => v2.Join (DoRange (values, f.Field.GetValue (obj), f.FrontType, f.Rank, pos.Next (v2, vertical), f.Rank > 0)))
-                    : obj is ICollection cc
-                        ? cc.Cast<object> ().Aggregate (v, (v2, o) => v2.Join (DoRange (values, o, type, i - 1, pos.Next (v2, vertical), !vertical)))
-                        : throw new Exception ();
-            return v;
+            if (type == null)
+                WriteSingleValue (values, serializer.Serialize (source), fromPoint);
+            else
+                foreach (var field in type.CompactFields)
+                foreach ((object o, V2Int p) in (field.Field.GetValue (source), fromPoint).UnwrapArray(field, 1, field.GetV2InArray))
+                    WriteValueRange (values, field.FrontType, o, p);
         }
 
-        V2Int WriteValue(IList<IList<object>> values, object value, V2Int pos)
+        void WriteSingleValue(IList<IList<object>> values, object value, V2Int pos)
         {
-            if (values.Count == pos.X)
+            for (int i = values.Count; i < pos.X; i++)
                 values.Add (new List<object> ());
             for (int i = values[pos.X].Count; i < pos.Y; i++)
                 values[pos.X].Add (null);
             values[pos.X].Add (serializer.Serialize (value));
-            return pos;
         }
 
         // RequestedObject must contain all fitting sheet names, keeping their structure (multi-dimensional array)
@@ -137,7 +131,7 @@ namespace RecursiveMapper
         {
             Predicate<int[]> validate = indices =>
             {
-                RequestedObject result = new RequestedObject (type, name.JoinSheetNames (type.SheetName), indices);
+                RequestedObject result = new RequestedObject (type, name.JoinSheetNames (type.SheetName), indices);// todo - Fixed size arrays are required too
                 bool comparison = available.IsSupersetOf (result.FullNames);
                 if (comparison) results.Add (result);
                 return comparison;

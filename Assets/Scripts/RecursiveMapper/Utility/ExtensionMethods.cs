@@ -7,6 +7,8 @@ namespace RecursiveMapper
 {
     static class ExtensionMethods
     {
+        private static readonly MethodInfo AddMethodInfo = typeof(ICollection<>).GetMethod ("Add", BindingFlags.Instance | BindingFlags.Public);
+
         public static MapFieldAttribute MapAttribute(this FieldInfo field)
         {
             var attribute = (MapFieldAttribute)Attribute.GetCustomAttribute (field, typeof(MapFieldAttribute));
@@ -30,5 +32,16 @@ namespace RecursiveMapper
         public static string JoinSheetNames(this string parent, string child) => child.Contains ("{0}") ? string.Format (child, parent) : parent + child;
 
         public static Chunked<T> ToChunks<T>(this IEnumerable<T> source, int chunkSize) where T : class => new Chunked<T> (source, chunkSize);
+
+        public static object AddChild(this MapFieldAttribute field, object parent, int rank, object child = null)
+        {
+            var childToAdd = child ?? Activator.CreateInstance (field.ArrayTypes[rank]);
+            if (rank == 0)
+                field.Field.SetValue (parent, childToAdd);
+            else
+                AddMethodInfo.MakeGenericMethod (field.ArrayTypes[rank]).Invoke (parent, new[] {childToAdd});
+            return childToAdd;
+        }
+
     }
 }

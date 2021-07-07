@@ -8,8 +8,6 @@ namespace RecursiveMapper
 {
     static class ArrayUtility
     {
-        private static readonly MethodInfo AddMethodInfo = typeof(ICollection<>).GetMethod ("Add", BindingFlags.Instance | BindingFlags.Public);
-
         public static void FindValidArrayIndices(this Predicate<int[]> validate, int count) // IMPORTANT: indices start from 1, not 0
         {
             var indices = Enumerable.Repeat (1, count + 1).ToArray (); // 0 element is a pointer to current value.
@@ -23,18 +21,18 @@ namespace RecursiveMapper
             }
         }
 
-        public static IEnumerable<(string name, object  obj)> ToCollection(this object o, string name, int repeats)
+        public static IEnumerable<(object obj, T data)> UnwrapArray<T>(this (object obj, T data) array, MapFieldAttribute f, int rank, Func<T, int, int, T> newT)
         {
-            return repeats == 0
-                       ? new[]{(name,  o)}
-                       : o is ICollection c
-                           ? repeats > 1
-                                 ? c.Cast<object> ().SelectMany ((e, i) => ToCollection (e, $"{name} {i}", repeats - 1))
-                                 : c.Cast<object> ().Select ((e, i) => ($"{name} {i}", e))
+            return rank > f.CollectionSize.Count// todo - maybe check number of elements in fixed sized collections
+                       ? new[]{array}
+                       : array.obj is ICollection c
+                           ? c.Cast<object> ().Select ((e, i) => (e, newT(array.data, rank, i)).UnwrapArray (f, rank + 1, newT)).SelectMany (x => x)
                            : throw new Exception ();
         }
 
-        public static Action<object, object> AddContent(this Type type) => (o, e) => AddMethodInfo.MakeGenericMethod (type).Invoke (o, new[] {e});
+        public static V2Int GetScale(int count, int rank) => new V2Int ((int)Math.Pow (count, rank & 1), (int)Math.Pow (count, 1 - (rank & 1)));
+
+        public static V2Int GetHalf(this V2Int target, int rank) => new V2Int ((1 - (rank & 1)) * target.X, (rank & 1) * target.Y);
 
     }
 }

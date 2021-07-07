@@ -20,7 +20,7 @@ namespace RecursiveMapper
         internal IReadOnlyList<MapFieldAttribute> SheetsFields { get; private set; }
         internal V2Int Size { get; private set; }
 
-        internal IReadOnlyList<string> RequiredSheets => requiredSheets ??= SheetsFields.Where (x => x.Rank == 0)
+        internal IReadOnlyList<string> RequiredSheets => requiredSheets ??= SheetsFields.Where (x => x.HasFixedSize)
                                                                                         .SelectMany (x => x.FrontType.RequiredSheets)
                                                                                         .Select (SheetName.JoinSheetNames).ToArray ();
 

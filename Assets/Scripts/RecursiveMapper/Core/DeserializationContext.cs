@@ -12,7 +12,7 @@ namespace RecursiveMapper
 
         public object MakeSheets(MapClassAttribute ta, string name)
         {
-            var result = Activator.CreateInstance (ta.Type);
+            var result = Activator.CreateInstance (ta.Type);           // if result object is received, i can remove ta.Type property
             foreach (var field in ta.SheetsFields)
                 field.Field.SetValue (result, field.Rank == 0
                                                   ? CreateSheetObject (field, name)
@@ -24,7 +24,7 @@ namespace RecursiveMapper
         {
             var name = parentName.JoinSheetNames (field.FrontType.SheetName);
             var result = Activator.CreateInstance (field.ArrayTypes[0]);
-            var request = Requests.FirstOrDefault (rq => StringComparer.Ordinal.Equals ((string) rq.OwnName, name)) ?? throw new Exception ();
+            var request = Requests.FirstOrDefault (rq => StringComparer.Ordinal.Equals (rq.OwnName, name)) ?? throw new Exception ();
             Unwrap (result, request.MatchingSheets, field, 1);
             return result;
         }
@@ -67,8 +67,8 @@ namespace RecursiveMapper
 
         IEnumerable<IEnumerable<IList<object>>> Split(IEnumerable<IList<object>> values, MapFieldAttribute field, int rank) // rank 1 is first, vertical
         {
-            var size = field.FrontType.Size;    // todo - remove placeholder solution
-            return (rank & 1) > 0
+            var size = field.FrontType.Size;    // todo - remove placeholder solution -> this
+            return (rank & 1) > 0                           // todo - maybe with sizes of array known, it needs changes
                        ? values.Select (x => (IEnumerable<IList<object>>)x.ToChunks (size.Y))
                        : values.ToChunks (size.X);
         }
