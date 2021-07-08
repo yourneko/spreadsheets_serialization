@@ -33,7 +33,7 @@ namespace RecursiveMapper
             SortOrder = field.GetCustomAttribute<MapPlacementAttribute> ()?.SortOrder
                      ?? (Rank == 0 || (CollectionSize?.Count ?? 0) == Rank
                              ? 1000
-                             : Int32.MaxValue + Rank - 2);
+                             : int.MaxValue + Rank - 2);
             var type = field.FieldType;
             var types = new List<Type> {type};
             while (type.MapAttribute () != null && (type = type.GetEnumeratedType()) != null)
@@ -50,11 +50,11 @@ namespace RecursiveMapper
             for (int i = Rank; i > 0; i--)
                 sizes[i - 1] = CollectionSize.Count == 0
                                    ? sizes[i].Max(new V2Int(999, 999).GetHalf(i - 1))
-                                   : sizes[i].Scale (ExtensionMethods.GetScale (CollectionSize[i - 1], i - 1));
+                                   : sizes[i].Scale ((int)Math.Pow (CollectionSize[i-1], Rank & 1), (int)Math.Pow (CollectionSize[i-1], 1 - (Rank & 1)));
             TypeSizes = sizes;
-            return (Borders = new IntRect (startPos.X, 0, sizes[0]));
+            return Borders = new IntRect (startPos.X, 0, sizes[0]);
         }
 
-        internal V2Int GetV2InArray(V2Int origin, int rank, int i) => origin.Add(TypeSizes[rank].GetHalf (rank).Scale (new V2Int (i, i)));
+        internal V2Int GetOffset(int rank, int scale = 1) => new V2Int((1 - (rank & 1)) * TypeSizes[rank].X * scale, (rank & 1) * TypeSizes[rank].Y * scale);
     }
 }

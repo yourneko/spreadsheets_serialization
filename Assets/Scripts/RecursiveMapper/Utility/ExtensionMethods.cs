@@ -42,11 +42,11 @@ namespace RecursiveMapper
 
         public static IEnumerable<(object obj, T data)> UnwrapArray<T>(this (object obj, T data) array, MapFieldAttribute f, int rank, Func<T, int, int, T> newT)
         {
-            return rank > f.CollectionSize.Count // todo - maybe check number of elements in fixed sized collections
+            return rank > f.CollectionSize.Count
                        ? new[]{array}
                        : array.obj is ICollection c
                            ? c.Cast<object> ().Select ((e, i) => (e, newT(array.data, rank, i)).UnwrapArray (f, rank + 1, newT)).SelectMany (x => x)
-                           : throw new Exception ();
+                           : throw new Exception ($"Object was expected to be a collection, but it isn't. (Field {f.Field.Name}, rank {rank})");
         }
 
         public static string JoinSheetNames(this string parent, string child) => child.Contains ("{0}") ? string.Format (child, parent) : $"{parent} {child}";
@@ -55,9 +55,7 @@ namespace RecursiveMapper
             $"'{sheet}'!{a2First}:{SpreadsheetsUtility.WriteA1 (type.Size.Add (SpreadsheetsUtility.ReadA1 (a2First)))}";
 
         public static Chunked<T> ToChunks<T>(this IEnumerable<T> source, int chunkSize) where T : class => new Chunked<T> (source, chunkSize);
-
-        public static V2Int GetScale(int count, int rank) => new V2Int ((int)Math.Pow (count, rank & 1), (int)Math.Pow (count, 1 - (rank & 1)));
-
+        
         public static V2Int GetHalf(this V2Int target, int rank) => new V2Int ((1 - (rank & 1)) * target.X, (rank & 1) * target.Y);
     }
 }

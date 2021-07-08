@@ -74,14 +74,15 @@ namespace RecursiveMapper
             WriteValueRange (data, type, obj, SpreadsheetsUtility.ReadA1 (FirstCell));
             results.Add (new ValueRange{Values = data, MajorDimension = "COLUMNS", Range = type.GetReadRange(name, FirstCell)});
         }
-
+        
+        // todo: offset(int rank, int index) = rank == field.Rank ? field.FrontType.CompactFields.Take(index).Sum(Size.X) : field.GetOffset(rank, index);
         void WriteValueRange(IList<IList<object>> values, MapClassAttribute type, object source, V2Int fromPoint)
         {
             if (type == null)
                 WriteSingleValue (values, serializer.Serialize (source), fromPoint);
             else
                 foreach (var field in type.CompactFields)
-                foreach ((object o, V2Int p) in (field.Field.GetValue (source), fromPoint).UnwrapArray(field, 1, field.GetV2InArray))
+                foreach ((var o, var p) in (field.Field.GetValue (source), fromPoint).UnwrapArray(field, 1, (v2, r, i) => field.GetOffset(r,i).Add(v2)))
                     WriteValueRange (values, field.FrontType, o, p);
         }
 
@@ -94,30 +95,41 @@ namespace RecursiveMapper
             values[pos.X].Add (serializer.Serialize (value));
         }
 
-        bool ReadObject(object target, string name, MapClassAttribute type, HashSet<string> sheets, IDictionary<string, Action<IList<IList<object>>>> actions)
+        // There are 4 categories of fields, which are processed by different rules. Arrays may stay empty, but other sheets must be present.
+        bool ReadObject(object obj, string name, MapClassAttribute type, HashSet<string> sheets, IDictionary<string, Action<IList<IList<object>>>> actions)
         {
             if (type.CompactFields.Any ())
             {
                 if (!sheets.Contains(name)) return false;
-                actions.Add (type.GetReadRange(name, FirstCell), ApplyValueCurried (target, type)); // all compact fields
+                actions.Add (type.GetReadRange(name, FirstCell), ApplyValueCurried (obj, type));    // all compact fields together
             }
-            foreach (var pair in type.SheetsFields.Where(f => f.Rank > 0 && f.Rank == f.CollectionSize.Count) // array sheet fields of fixed size
-                                     .SelectMany(field => EnumerateFixedSizedArray((target, name.JoinSheetNames(field.FrontType.SheetName)), field, 1)
+            foreach (var pair in type.SheetsFields.Where(f => f.Rank > 0 && f.Rank == f.CollectionSize.Count)    // arrays of sheets of fixed size
+                                     .SelectMany(field => EnumerateFixedSizedArray((obj, name.JoinSheetNames(field.FrontType.SheetName)), field, 1)
                                                          .Select(x => (x.obj, x.name, new Dictionary<string, Action<IList<IList<object>>>>()))
                                                          .Where(x => ReadObject(x.obj, x.name, field.FrontType, sheets, x.Item3))
                                                          .SelectMany(x => x.Item3)))
                 actions.Add(pair.Key, pair.Value);
 
-            foreach (var field in type.SheetsFields.Where(f => f.Rank > 0 && f.CollectionSize.Count == 0)) // free sized sheet arrays
-                EnumerateFreeSizedArray(target, name.JoinSheetNames(field.FrontType.SheetName), field, actions);
+            foreach (var field in type.SheetsFields.Where(f => f.Rank > 0 && f.CollectionSize.Count == 0))    // arrays of sheets of free size
+                ReadFree(obj, name.JoinSheetNames(field.FrontType.SheetName), field, sheets, actions, 1);
             
-            // non-array sheet fields
-            return type.SheetsFields.Where (f => f.Rank == 0).All (f => ReadObject (f.AddChild (target, 0), name, f.FrontType, sheets, actions)); 
+            return type.SheetsFields.Where (f => f.Rank == 0)    // single sheets
+                       .All (f => ReadObject (f.AddChild (obj, 0), name.JoinSheetNames(f.FrontType.SheetName), f.FrontType, sheets, actions));
         }
 
-        void EnumerateFreeSizedArray(object obj, string name, MapFieldAttribute f, IDictionary<string, Action<IList<IList<object>>>> actions)
+        bool ReadFree(object obj, string name, MapFieldAttribute f, HashSet<string> sheets, IDictionary<string, Action<IList<IList<object>>>> actions, int rank)
         {
-            throw new NotImplementedException(); // todo - 1, 2, throw exception on other ranks
+            int index = 0;
+            var dictionary = new Dictionary<string, Action<IList<IList<object>>>>();
+            while (rank == f.Rank 
+                       ? ReadObject(obj, $"{name} {++index}", f.FrontType, sheets, dictionary) 
+                       : ReadFree(f.AddChild(obj, rank), $"{name} {++index}", f, sheets, dictionary, rank + 1))
+            {
+                foreach (var action in dictionary)
+                    actions.Add(action.Key, action.Value);
+                dictionary.Clear();
+            }
+            return index > 1;
         }
         
         IEnumerable<(object obj, string name)> EnumerateFixedSizedArray((object obj, string name) array, MapFieldAttribute f, int rank)
@@ -134,7 +146,7 @@ namespace RecursiveMapper
                 Unwrap (f.AddChild (obj, 0), values.Take (f.Borders.Size.X), f, 0);
         };
 
-        void ApplyValue(object target, IList<IList<object>> values, MapFieldAttribute field) // todo - make a non-void return type for ?:    (??)
+        void ApplyValue(object target, IList<IList<object>> values, MapFieldAttribute field)
         {
             if (field.FrontType is null) // values should have 1 element there
                 field.AddChild (target, field.Rank, serializer.Deserialize (field.ArrayTypes.Last (), (string)values[0][0]));
@@ -142,13 +154,13 @@ namespace RecursiveMapper
                     Unwrap (f.AddChild (target, 1), values.Take (f.Borders.Size.X), f, 1);
         }
 
-        void Unwrap(object target, IEnumerable<IList<object>> values, MapFieldAttribute field, int rank)  // todo - can i reuse UnwrapArray there?
+        void Unwrap(object target, IEnumerable<IList<object>> values, MapFieldAttribute field, int rank) //todo: can be removed. TopLeft corner pos is enough
         {
             if (rank == field.Rank)
                 ApplyValue (target, values.ToList (), field);
-            else foreach (var part in ((rank & 1) > 0
-                                           ? values.Select (x => (IEnumerable<IList<object>>)x.ToChunks (field.TypeSizes[rank].Y))
-                                           : values.ToChunks (field.TypeSizes[rank].X)))
+            else foreach (var part in (rank & 1) > 0
+                                          ? values.Select (x => (IEnumerable<IList<object>>)x.ToChunks (field.TypeSizes[rank].Y))
+                                          : values.ToChunks (field.TypeSizes[rank].X))
                     Unwrap (field.AddChild (target, rank), part, field, rank + 1);
         }
     }

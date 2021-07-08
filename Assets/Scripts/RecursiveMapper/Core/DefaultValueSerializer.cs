@@ -6,7 +6,7 @@ namespace RecursiveMapper
 {
     class DefaultValueSerializer : IValueSerializer
     {
-        static readonly IReadOnlyDictionary<Type, Func<string, object>> Switch =
+        static readonly IReadOnlyDictionary<Type, Func<string, object>> @switch =
             new Dictionary<Type, Func<string, object>>
             {
                 {typeof(string), s => s},
@@ -30,7 +30,7 @@ namespace RecursiveMapper
                                                                 _          => target.ToString (),
                                                             };
 
-        public object Deserialize(Type type, string value) => Switch.TryGetValue (type, out var func)
+        public object Deserialize(Type type, string value) => @switch.TryGetValue (type, out var func)
                                                                               ? func.Invoke (value)
                                                                               : throw new NotSupportedException (NotSupportedTypeMessage(type));
     }
