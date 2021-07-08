@@ -4,11 +4,9 @@ using System.Reflection;
 
 namespace RecursiveMapper
 {
-    /// <summary>
-    /// The target field can be mapped to the Google Spreadsheets.
-    /// </summary>
+    /// <summary>Contains metadata of fields.</summary>
     [AttributeUsage (AttributeTargets.Field)]
-    public class MapFieldAttribute : Attribute
+    public sealed class MapFieldAttribute : Attribute
     {
         public readonly IReadOnlyList<int> CollectionSize;
 
@@ -20,12 +18,8 @@ namespace RecursiveMapper
         internal IReadOnlyList<V2Int> TypeSizes { get; private set; }
         internal MapClassAttribute FrontType { get; private set; }
         internal IntRect Borders { get; private set; }
-        internal bool HasFixedSize => Rank == 0 ||
-                                   CollectionSize != null && CollectionSize.Count > 0;
 
-        /// <summary>
-        /// The target field can be mapped to the Google Spreadsheets.
-        /// </summary>
+        /// <summary>Map this field to Google Spreadsheets.</summary>
         /// <param name="fixedCollectionSize">  </param>
         public MapFieldAttribute(params int[] fixedCollectionSize)
         {
@@ -36,9 +30,10 @@ namespace RecursiveMapper
         {
             Initialized = true;
             Field       = field;
-            var placement = field.GetCustomAttribute<MapPlacementAttribute> ();
-            SortOrder = placement?.SortOrder ?? (HasFixedSize ? 1000 : Int32.MaxValue + Rank - 2);
-
+            SortOrder = field.GetCustomAttribute<MapPlacementAttribute> ()?.SortOrder
+                     ?? (Rank == 0 || (CollectionSize?.Count ?? 0) == Rank
+                             ? 1000
+                             : Int32.MaxValue + Rank - 2);
             var type = field.FieldType;
             var types = new List<Type> {type};
             while (type.MapAttribute () != null && (type = type.GetEnumeratedType()) != null)
@@ -54,8 +49,8 @@ namespace RecursiveMapper
             sizes[Rank] = FrontType?.Size ?? new V2Int (1, 1);
             for (int i = Rank; i > 0; i--)
                 sizes[i - 1] = CollectionSize.Count == 0
-                                   ? sizes[i].Join(new V2Int(999, 999).GetHalf(i - 1))
-                                   : sizes[i].Scale (ArrayUtility.GetScale (CollectionSize[i - 1], i - 1));
+                                   ? sizes[i].Max(new V2Int(999, 999).GetHalf(i - 1))
+                                   : sizes[i].Scale (ExtensionMethods.GetScale (CollectionSize[i - 1], i - 1));
             TypeSizes = sizes;
             return (Borders = new IntRect (startPos.X, 0, sizes[0]));
         }

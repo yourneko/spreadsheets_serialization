@@ -2,19 +2,14 @@ namespace RecursiveMapper
 {
     readonly struct IntRect
     {
-        public readonly V2Int From, Till;
+        public readonly V2Int TopLeft, BottomRight;
 
-        public V2Int Size => new V2Int (Till.X - From.X, Till.Y - From.Y);
-        public IntRect(V2Int from, V2Int till)
-        {
-            From = from;
-            Till = till;
-        }
+        public V2Int Size => new V2Int (BottomRight.X - TopLeft.X, BottomRight.Y - TopLeft.Y);
 
         public IntRect(int x, int y, V2Int size)
         {
-            From = new V2Int (x, y);
-            Till = new V2Int (size.X + x, size.Y + y);
+            TopLeft = new V2Int (x, y);
+            BottomRight = new V2Int (size.X + x, size.Y + y);
         }
     }
 }

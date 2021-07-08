@@ -6,7 +6,7 @@ namespace RecursiveMapper
 {
     class Chunked<T> : IEnumerable<IList<T>> where T : class
     {
-        private readonly ChunkEnumerator e;
+        readonly ChunkEnumerator e;
 
         public Chunked(IEnumerable<T> source, int chunkSize)
         {
@@ -16,10 +16,10 @@ namespace RecursiveMapper
         public IEnumerator<IList<T>> GetEnumerator() => e;
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator ();
 
-        private readonly struct ChunkEnumerator : IEnumerator<IList<T>>
+        readonly struct ChunkEnumerator : IEnumerator<IList<T>>
         {
-            private readonly T[] array;
-            private readonly IEnumerator<T> e;
+            readonly T[] array;
+            readonly IEnumerator<T> e;
 
             public ChunkEnumerator(IEnumerable<T> source, int chunkSize)
             {
@@ -37,8 +37,8 @@ namespace RecursiveMapper
             }
 
             public IList<T> Current => array.ToArray ();
-            public void Reset() => e.Reset ();
             object IEnumerator.Current => Current;
+            public void Reset() => e.Reset ();
             public void Dispose() => e.Dispose ();
         }
     }

@@ -5,28 +5,18 @@ using System.Reflection;
 
 namespace RecursiveMapper
 {
-    /// <summary>
-    /// Marks classes intended to be serialized.
-    /// </summary>
+    /// <summary>Contains metadata of classes.</summary>
     [AttributeUsage (AttributeTargets.Class)]
-    public class MapClassAttribute : Attribute
+    public sealed class MapClassAttribute : Attribute
     {
         public readonly string SheetName;
-        string[] requiredSheets;
 
         internal bool Initialized { get; private set; }
-        internal Type Type { get; private set; }
         internal IReadOnlyList<MapFieldAttribute> CompactFields { get; private set; }
         internal IReadOnlyList<MapFieldAttribute> SheetsFields { get; private set; }
         internal V2Int Size { get; private set; }
 
-        internal IReadOnlyList<string> RequiredSheets => requiredSheets ??= SheetsFields.Where (x => x.HasFixedSize)
-                                                                                        .SelectMany (x => x.FrontType.RequiredSheets)
-                                                                                        .Select (SheetName.JoinSheetNames).ToArray ();
-
-        /// <summary>
-        /// Marks classes intended to be serialized.
-        /// </summary>
+        /// <summary>Map this class to Google Spreadsheets.</summary>
         /// <param name="sheetName">Types with a sheet name always occupy the whole sheet.</param>
         /// <remarks>Avoid loops in hierarchy of types. It will cause the stack overflow.</remarks>
         public MapClassAttribute(string sheetName = null)
@@ -36,7 +26,6 @@ namespace RecursiveMapper
 
         internal void CacheMeta(Type type)
         {
-            Type        = type;
             Initialized = true;
             var allFields = type.GetFields (BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                                 .Select (field => field.MapAttribute ())
@@ -48,7 +37,7 @@ namespace RecursiveMapper
             CompactFields = allFields.Where (x => x.FrontType is null || string.IsNullOrEmpty(x.FrontType.SheetName))
                                      .OrderBy (x => x.SortOrder)
                                      .ToArray ();
-            Size = CompactFields.Aggregate(V2Int.Zero, (s, f) => s.JoinRight(f.GetSize(s).Size));
+            Size = CompactFields.Aggregate(new V2Int(0, 0), (s, f) => s.Max(f.GetSize(s).BottomRight));
         }
     }
 }

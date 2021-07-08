@@ -13,7 +13,7 @@ namespace RecursiveMapper
     // Assembling and sending requests to Google Spreadsheets API
     static class SpreadsheetsUtility
     {
-        const int A1_LETTERS_COUNT = 26;
+        const int A1LettersCount = 26;
 
         static ClientServiceRequest<T> AddBackOffHandler<T>(this ClientServiceRequest<T> request, BackOffHandler handler = null)
         {
@@ -49,7 +49,7 @@ namespace RecursiveMapper
             return result.ValueRanges;
         }
 
-        static async Task<bool> CreateSheetsAsync(this SheetsService service, string spreadsheet, HashSet<string> requiredSheets)
+        static async Task<bool> CreateSheetsAsync(this SheetsService service, string spreadsheet, IEnumerable<string> requiredSheets)
         {
             var existingSheets = await service.GetSheetsListAsync (spreadsheet);
             if ((existingSheets = requiredSheets.Except (existingSheets).ToArray ()).Length == 0)
@@ -61,7 +61,7 @@ namespace RecursiveMapper
 #endregion
 #region Making instances of Google Sheets API Requests
 
-        static BatchUpdateSpreadsheetRequest CreateAddSheetsRequest(ICollection<string> sheetsToCreate) =>
+        static BatchUpdateSpreadsheetRequest CreateAddSheetsRequest(IEnumerable<string> sheetsToCreate) =>
             new BatchUpdateSpreadsheetRequest {Requests = sheetsToCreate.Select (CreateAddSheetRequest).ToList ()};
 
         static Request CreateAddSheetRequest(string sheetName)
@@ -76,14 +76,14 @@ namespace RecursiveMapper
 #region Google Spreadsheets A1 notation
 
         // IMPORTANT! Indices 'x' and 'y' are counted from 0. The point (0,0) corresponds to A1 cell
-        public static V2Int ReadA1(string a1) => new V2Int (Evaluate (a1.Where (char.IsLetter).Select (char.ToUpperInvariant), '@', A1_LETTERS_COUNT),
+        public static V2Int ReadA1(string a1) => new V2Int (Evaluate (a1.Where (char.IsLetter).Select (char.ToUpperInvariant), '@', A1LettersCount),
                                                           Evaluate (a1.Where (char.IsDigit), '0', 10));
 
         public static string WriteA1(V2Int a1) => new string(ToLetters (a1.X).ToArray()) + (a1.Y + 1);
 
-        static IEnumerable<char> ToLetters(int number) => number < A1_LETTERS_COUNT
+        static IEnumerable<char> ToLetters(int number) => number < A1LettersCount
                                                               ? new[]{(char)('A' + number)}
-                                                              : ToLetters (number / A1_LETTERS_COUNT - 1).Append ((char)('A' + number % A1_LETTERS_COUNT));
+                                                              : ToLetters (number / A1LettersCount - 1).Append ((char)('A' + number % A1LettersCount));
 
         static int Evaluate(IEnumerable<char> digits, char zero, int @base)
         {

@@ -7,7 +7,7 @@ namespace Example
     [Serializable, MapClass ("Group {0}")]
     public class SuperclassData
     {
-        [SerializeField, MapField, MapPlacement(1)] ExampleData[] data;
-        [SerializeField, MapField, MapPlacement(0)] string title;
+        [SerializeField, MapField, MapPlacement(SortOrder = 1)] ExampleData[] data;
+        [SerializeField, MapField, MapPlacement(SortOrder = 0)] string title;
     }
 }

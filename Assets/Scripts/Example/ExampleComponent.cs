@@ -16,9 +16,9 @@ namespace Example
 
         [SerializeField] TextAsset key;
 
-        private MapperService service;
+        MapperService service;
 
-        private void Start()
+        void Start()
         {
             var httpInit = GoogleCredential.FromJson (key.text).CreateScoped ("https://spreadsheets.google.com/feeds", "https://docs.google.com/feeds");
             service = new MapperService (new BaseClientService.Initializer
@@ -35,7 +35,7 @@ namespace Example
         public void ReadData() => InvokeSafe (Read<ExampleData> (x => target.data = x));
         public void ReadSheets() => InvokeSafe (Read<SuperclassData> (x => target.someSheetsData = x));
 
-        private static async void InvokeSafe(Task task)
+        static async void InvokeSafe(Task task)
         {
             try
             {
@@ -47,13 +47,13 @@ namespace Example
             }
         }
 
-        private async Task Write<T>(T obj)
+        async Task Write<T>(T obj)
         {
             var result = await service.WriteAsync (obj, testSpreadsheetID);
             print (result ? "Sheets were successfully updated." : "Write task failed");
         }
 
-        private async Task Read<T>(Action<T> callback)
+        async Task Read<T>(Action<T> callback)
             where T : new()
         {
             var result = await service.ReadAsync<T> (testSpreadsheetID);

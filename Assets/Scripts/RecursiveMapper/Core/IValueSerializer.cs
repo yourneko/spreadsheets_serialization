@@ -2,22 +2,16 @@ using System;
 
 namespace RecursiveMapper
 {
-    /// <summary>
-    /// Provides a strategy of value serialization.
-    /// </summary>
+    /// <summary>Provides a strategy of value serialization.</summary>
     public interface IValueSerializer
     {
-        /// <summary>
-        /// Represents object as a string value.
-        /// </summary>
+        /// <summary>Represents object as a string value.</summary>
         /// <param name="value">User's object</param>
         /// <typeparam name="T">The type defines a strategy of serialization.</typeparam>
         /// <returns>Culture-invariant formatting for simple types.</returns>
         string Serialize(object value);
 
-        /// <summary>
-        /// Creates an object of the given type out of the string.
-        /// </summary>
+        /// <summary>Creates an object of the given type out of the string.</summary>
         /// <param name="type">Type of object.</param>
         /// <param name="text">A source string.</param>
         /// <returns>Result object.</returns>
