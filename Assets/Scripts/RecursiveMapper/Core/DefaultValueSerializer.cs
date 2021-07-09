@@ -14,7 +14,7 @@ namespace RecursiveMapper
                 {typeof(float), value => float.TryParse (value, NumberStyles.Float, CultureInfo.InvariantCulture, out float f) ? f : 0f},
                 {typeof(double), value => double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double d) ? d : 0},
                 {typeof(bool), value => StringComparer.OrdinalIgnoreCase.Equals(value, "true")},
-                {typeof(DateTime), s => DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var a) ? a : DateTime.MinValue},
+                {typeof(DateTime), s => DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var a) ? a : DateTime.MinValue}
             };
 
         static string NotSupportedTypeMessage(Type type) => $"Value type {type.Name} is not supported by default value serializer.";
@@ -27,7 +27,7 @@ namespace RecursiveMapper
                                                                 float f    => f.ToString (CultureInfo.InvariantCulture),
                                                                 DateTime a => a.ToString (CultureInfo.InvariantCulture),
                                                                 null       => string.Empty,
-                                                                _          => target.ToString (),
+                                                                _          => target.ToString ()
                                                             };
 
         public object Deserialize(Type type, string value) => @switch.TryGetValue (type, out var func)

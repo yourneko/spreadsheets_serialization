@@ -61,8 +61,6 @@ namespace RecursiveMapper
         {
             service.Dispose ();
         }
-
-#region Write
         
         void MakeValueRanges(object obj, MapClassAttribute type, string parentName, ICollection<ValueRange> results)
         {
@@ -83,7 +81,7 @@ namespace RecursiveMapper
                 WriteSingleValue (values, serializer.Serialize (source), fromPoint);
             else
                 foreach (var field in type.CompactFields)
-                foreach ((var o, var p) in (field.Field.GetValue (source), fromPoint).UnwrapArray(field, 1, (v2, r, i) => field.GetOffset(r,i).Add(v2)))
+                foreach (var (o, p) in (field.Field.GetValue (source), fromPoint).UnwrapArray(field, 1, (v2, r, i) => field.GetOffset(r,i).Add(v2)))
                     WriteValueRange (values, field.FrontType, o, p);
         }
 
@@ -96,13 +94,10 @@ namespace RecursiveMapper
             values[pos.X].Add (serializer.Serialize (value));
         }
 
-#endregion
-#region Read: sheets
-
-        // There are 4 categories of fields, which are processed by different rules. Arrays may stay empty, but other sheets must be present.
         // todo: it is asking to be rewritten
         bool ReadObject(object obj, string name, MapClassAttribute type, HashSet<string> sheets, IDictionary<string, Action<IList<IList<object>>>> actions)
         {
+            // There are 4 categories of fields, which are processed by different rules. Arrays may stay empty, but other sheets must be present.
             if (type.CompactFields.Any ())
             {
                 if (!sheets.Contains(name)) return false;
@@ -136,17 +131,14 @@ namespace RecursiveMapper
             }
             return index > 1;
         }
-        
-        IEnumerable<(object obj, string name)> EnumerateFixedSizedArray((object obj, string name) array, MapFieldAttribute f, int rank)
+
+        static IEnumerable<(object obj, string name)> EnumerateFixedSizedArray((object obj, string name) array, MapFieldAttribute f, int rank)
         {
             var indices = Enumerable.Range(1, f.CollectionSize[rank - 1]);
             return rank > f.CollectionSize.Count - 1 // only for collections of fixed size
                        ? indices.Select(i => (f.AddChild(array.obj, rank), $"{array.name} {i}"))  // todo: sus, check
                        : indices.SelectMany(i => EnumerateFixedSizedArray((f.AddChild(array.obj, rank), $"{array.name} {i}"), f, rank + 1));
         }
-
-#endregion
-#region Read: values
 
         Action<IList<IList<object>>> ApplyValueCurry(object obj, MapClassAttribute type) => values =>
         {
@@ -158,13 +150,12 @@ namespace RecursiveMapper
         {
             if (field.Rank == rank && field.FrontType is null)
             {
-                field.AddChild (target, rank, serializer.Deserialize (field.ArrayTypes.Last (), (string)values[pos.X][pos.Y]));
+                if (!TryGetDeserializedValue(values, field.ArrayTypes.Last(), pos, out var obj)) return false;
+                field.AddChild (target, rank, obj);
                 return true;
             }
-
             if (field.Rank == rank)
                 return field.FrontType.CompactFields.All(f => ApplyValue(field.AddChild(target, rank), values, f, 0, pos.Add(field.FrontType.GetFieldPos(f))));
-
 
             if (field.CollectionSize.Count == field.Rank)
             {
@@ -176,10 +167,13 @@ namespace RecursiveMapper
             int index = 0;
             while (ApplyValue(field.AddChild(target, rank), values, field, rank + 1, pos.Add(field.GetOffset(rank + 1, index))))
                 index += 1;
-
             return index > 1;
         }
 
-#endregion
+        bool TryGetDeserializedValue(IList<IList<object>> values, Type type, V2Int pos, out object value)
+        {
+            value = serializer.Deserialize(type, (string) values[pos.X][pos.Y]); // todo: negative scenario
+            return true;
+        }
     }
 }
