@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 
-namespace RecursiveMapper
+namespace SpreadsheetsMapper
 {
     /// <summary>Contains metadata of classes.</summary>
     [AttributeUsage (AttributeTargets.Class)]

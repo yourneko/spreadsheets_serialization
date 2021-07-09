@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 
-namespace RecursiveMapper
+namespace SpreadsheetsMapper
 {
     /// <summary>Contains metadata of fields.</summary>
     [AttributeUsage (AttributeTargets.Field)]
@@ -43,7 +43,7 @@ namespace RecursiveMapper
             sizes[Rank] = FrontType?.Size ?? new V2Int (1, 1);
             for (int i = Rank; i > 0; i--)
                 sizes[i - 1] = CollectionSize.Count == 0
-                                   ? sizes[i].Max(new V2Int(999, 999).GetHalf(i - 1))
+                                   ? sizes[i].Max(new V2Int(999 * ((Rank + 1) & 1), 999))
                                    : sizes[i].Scale ((int)Math.Pow (CollectionSize[i-1], Rank & 1), (int)Math.Pow (CollectionSize[i-1], 1 - (Rank & 1)));
             TypeSizes = sizes;
             return sizes[0];

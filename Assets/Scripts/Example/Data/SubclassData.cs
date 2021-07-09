@@ -1,5 +1,5 @@
 ﻿using System;
-using RecursiveMapper;
+using SpreadsheetsMapper;
 using UnityEngine;
 
 namespace Example

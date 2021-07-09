@@ -2,7 +2,7 @@
 using System.Threading.Tasks;
 using Google.Apis.Auth.OAuth2;
 using Google.Apis.Services;
-using RecursiveMapper;
+using SpreadsheetsMapper;
 using UnityEngine;
 
 namespace Example

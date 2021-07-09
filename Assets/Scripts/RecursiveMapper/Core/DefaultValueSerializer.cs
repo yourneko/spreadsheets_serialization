@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 
-namespace RecursiveMapper
+namespace SpreadsheetsMapper
 {
     class DefaultValueSerializer : IValueSerializer
     {
@@ -30,8 +30,10 @@ namespace RecursiveMapper
                                                                 _          => target.ToString ()
                                                             };
 
-        public object Deserialize(Type type, string value) => @switch.TryGetValue (type, out var func)
-                                                                              ? func.Invoke (value)
-                                                                              : throw new NotSupportedException (NotSupportedTypeMessage(type));
+        public object Deserialize(Type type, object value) => @switch.TryGetValue(type, out var func)
+                                                                  ? value is null
+                                                                        ? func.Invoke(string.Empty)
+                                                                        : func.Invoke((string) value)
+                                                                  : throw new NotSupportedException(NotSupportedTypeMessage(type));
     }
 }

@@ -1,6 +1,6 @@
 using System;
 
-namespace RecursiveMapper
+namespace SpreadsheetsMapper
 {
     /// <summary>Provides a strategy of value serialization.</summary>
     public interface IValueSerializer
@@ -15,6 +15,6 @@ namespace RecursiveMapper
         /// <param name="text">A source string.</param>
         /// <returns>Result object.</returns>
         /// <exception cref="NotSupportedException">Serialization of a given type is not implemented.</exception>
-        object Deserialize(Type type, string text);
+        object Deserialize(Type type, object text);
     }
 }

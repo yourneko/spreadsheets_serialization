@@ -6,7 +6,7 @@ using Google.Apis.Services;
 using Google.Apis.Sheets.v4;
 using Google.Apis.Sheets.v4.Data;
 
-namespace RecursiveMapper
+namespace SpreadsheetsMapper
 {
     public sealed class MapperService : IDisposable
     {
@@ -22,15 +22,15 @@ namespace RecursiveMapper
         /// <returns>Object of type T.</returns>
         public async Task<T> ReadAsync<T>(string spreadsheet, string sheet = "")
         {
-            var sheetsList = await service.GetSheetsListAsync (spreadsheet);
+            var spreadsheets = await service.GetSpreadsheetAsync(spreadsheet);
             var result = Activator.CreateInstance<T>();
-            var remainingAssembleActions = new Dictionary<string, Action<IList<IList<object>>>> ();
+            var actionsList = new Dictionary<string, Action<IList<IList<object>>>> ();
             var typeMeta = typeof(T).MapAttribute();
-            if (!ReadObject (result, sheet.JoinSheetNames(typeMeta.SheetName), typeMeta, new HashSet<string> (sheetsList), remainingAssembleActions))
+            if (!ReadObject (result, $"{sheet} {typeMeta.SheetName}", typeMeta, new HashSet<string> (spreadsheets.GetSheetsList()), actionsList))
                 throw new Exception("Can't parse the requested object. Data is missing in the provided spreadsheet");
 
-            var valueRanges = await service.GetValueRanges (spreadsheet, remainingAssembleActions.Select(x => x.Key));
-            foreach (var pair in remainingAssembleActions)
+            var valueRanges = await service.GetValueRanges (spreadsheet, actionsList.Select(x => x.Key));
+            foreach (var pair in actionsList)
                 pair.Value.Invoke (valueRanges.FirstOrDefault (x => x.Range == pair.Key)?.Values);
             return result;
         }
@@ -64,7 +64,7 @@ namespace RecursiveMapper
         
         void MakeValueRanges(object obj, MapClassAttribute type, string parentName, ICollection<ValueRange> results)
         {
-            string name = parentName.JoinSheetNames (type.SheetName);
+            string name = $"{parentName} {type.SheetName}";
             foreach (var field in type.SheetsFields)
             foreach ((object o, string s) in (field.Field.GetValue (obj), name).UnwrapArray (field, 1, (s, _, i) => $"{s} {i}"))
                 MakeValueRanges (o, field.FrontType, s, results);
@@ -101,20 +101,20 @@ namespace RecursiveMapper
             if (type.CompactFields.Any ())
             {
                 if (!sheets.Contains(name)) return false;
-                actions.Add (type.GetReadRange(name, FirstCell), ApplyValueCurry (obj, type));    // all compact fields together
+                actions.Add (type.GetReadRange(name, FirstCell), SetObjectValuesAction (obj, type));    // all compact fields together
             }
             foreach (var pair in type.SheetsFields.Where(f => f.Rank > 0 && f.Rank == f.CollectionSize.Count)    // arrays of sheets of fixed size
-                                     .SelectMany(field => EnumerateFixedSizedArray((obj, name.JoinSheetNames(field.FrontType.SheetName)), field, 1)
+                                     .SelectMany(field => EnumerateFixedSizedArray((obj, $"{name} {field.FrontType.SheetName}"), field, 1)
                                                          .Select(x => (x.obj, x.name, new Dictionary<string, Action<IList<IList<object>>>>()))
                                                          .Where(x => ReadObject(x.obj, x.name, field.FrontType, sheets, x.Item3))
                                                          .SelectMany(x => x.Item3)))
                 actions.Add(pair.Key, pair.Value);
 
             foreach (var field in type.SheetsFields.Where(f => f.Rank > 0 && f.CollectionSize.Count == 0))    // arrays of sheets of free size
-                ReadFree(obj, name.JoinSheetNames(field.FrontType.SheetName), field, sheets, actions, 1);
+                ReadFree(obj, $"{name} {field.FrontType.SheetName}", field, sheets, actions, 1);
             
             return type.SheetsFields.Where (f => f.Rank == 0)    // single sheets
-                       .All (f => ReadObject (f.AddChild (obj, 0), name.JoinSheetNames(f.FrontType.SheetName), f.FrontType, sheets, actions));
+                       .All (f => ReadObject (f.AddChild (obj, 0), $"{name} {f.FrontType.SheetName}", f.FrontType, sheets, actions));
         }
 
         bool ReadFree(object obj, string name, MapFieldAttribute f, HashSet<string> sheets, IDictionary<string, Action<IList<IList<object>>>> actions, int rank)
@@ -140,39 +140,44 @@ namespace RecursiveMapper
                        : indices.SelectMany(i => EnumerateFixedSizedArray((f.AddChild(array.obj, rank), $"{array.name} {i}"), f, rank + 1));
         }
 
-        Action<IList<IList<object>>> ApplyValueCurry(object obj, MapClassAttribute type) => values =>
+        Action<IList<IList<object>>> SetObjectValuesAction(object obj, MapClassAttribute type) => values =>
         {
             foreach (var f in type.CompactFields)
-                ApplyValue(f.AddChild(obj, 0), values, f, 0, new V2Int(0, 0));
+                SetValues(f.AddChild(obj, 0), values, f, 0, new V2Int(0, 0));
         };
 
-        bool ApplyValue(object target, IList<IList<object>> values, MapFieldAttribute field, int rank, V2Int pos)
+        bool SetValues(object target, IList<IList<object>> values, MapFieldAttribute field, int rank, V2Int pos)
         {
-            if (field.Rank == rank && field.FrontType is null)
-            {
-                if (!TryGetDeserializedValue(values, field.ArrayTypes.Last(), pos, out var obj)) return false;
-                field.AddChild (target, rank, obj);
-                return true;
-            }
-            if (field.Rank == rank)
-                return field.FrontType.CompactFields.All(f => ApplyValue(field.AddChild(target, rank), values, f, 0, pos.Add(field.FrontType.GetFieldPos(f))));
+            return field.Rank == rank                   // separate arrays
+                       ? field.FrontType is null        // separate values from objects
+                             ? TryGetDeserializedValue(values, field, target, pos) 
+                             : field.FrontType.CompactFields
+                                    .All(f => SetValues(field.AddChild(target, rank), values, f, 0, pos.Add(field.FrontType.GetFieldPos(f))))
+                       : field.CollectionSize.Count == field.Rank  
+                           ? SetFixedSizeArrayValues(target, values, field, rank, pos)
+                           : SetFreeSizeArrayValues(target, values, field, rank, pos);
+        }
 
-            if (field.CollectionSize.Count == field.Rank)
-            {
-                for (int i = 0; i < field.CollectionSize[rank]; i++)
-                    ApplyValue(field.AddChild(target, rank), values, field, rank + 1, pos.Add(field.GetOffset(rank + 1, i)));
-                return true;
-            }
-            
+        bool SetFixedSizeArrayValues(object target, IList<IList<object>> values, MapFieldAttribute field, int rank, V2Int pos)
+        {
+            for (int i = 0; i < field.CollectionSize[rank]; i++)
+                SetValues(field.AddChild(target, rank), values, field, rank + 1, pos.Add(field.GetOffset(rank + 1, i)));
+            return true;
+        }
+        
+        bool SetFreeSizeArrayValues(object target, IList<IList<object>> values, MapFieldAttribute field, int rank, V2Int pos)
+        {
             int index = 0;
-            while (ApplyValue(field.AddChild(target, rank), values, field, rank + 1, pos.Add(field.GetOffset(rank + 1, index))))
+            while (SetValues(field.AddChild(target, rank), values, field, rank + 1, pos.Add(field.GetOffset(rank + 1, index))))
                 index += 1;
             return index > 1;
         }
 
-        bool TryGetDeserializedValue(IList<IList<object>> values, Type type, V2Int pos, out object value)
+        bool TryGetDeserializedValue(IList<IList<object>> values, MapFieldAttribute field, object target, V2Int pos)
         {
-            value = serializer.Deserialize(type, (string) values[pos.X][pos.Y]); // todo: negative scenario
+            if (values.Count <= pos.X || values[pos.X].Count <= pos.Y)
+                return false;
+            field.AddChild(target, field.Rank, serializer.Deserialize(field.ArrayTypes.Last(), values[pos.X][pos.Y]));
             return true;
         }
     }

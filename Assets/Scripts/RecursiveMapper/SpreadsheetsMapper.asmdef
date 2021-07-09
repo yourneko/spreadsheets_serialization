@@ -1,6 +1,6 @@
 {
-    "name": "RecursiveMapper",
-    "rootNamespace": "RecursiveMapper",
+    "name": "SpreadsheetsMapper",
+    "rootNamespace": "SpreadsheetsMapper",
     "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],

@@ -491,7 +491,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
   m_AnchoredPosition: {x: 11.999985, y: -110}
-  m_SizeDelta: {x: 436.6, y: 450.8}
+  m_SizeDelta: {x: 421, y: 441}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &300226768
 MonoBehaviour:
@@ -507,16 +507,16 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 1
+  m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
-  m_Maskable: 1
+  m_Maskable: 0
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 10102, guid: 0000000000000000e000000000000000, type: 0}
-    m_FontSize: 18
-    m_FontStyle: 1
+    m_FontSize: 16
+    m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 1
     m_MaxSize: 40
@@ -525,17 +525,20 @@ MonoBehaviour:
     m_RichText: 1
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
-    m_LineSpacing: 1
-  m_Text: "SpreadsheetsSerialization allows you to read/write \ndata from/to Google
-    Spreadsheets documents. \nIt takes almost no additional code to run. Just mark
-    up your data classes with attributes (those classes must have a public parameterless
-    constructor), assemble a CustomBatchRequest and enqueue it.\n\nIn order to use
-    Google API, you have to create a key file through Google Developer web interface.
-    I use key of 'service_account' type, and I have no clue about other available
-    options.\n\nInspect the 'example' object in scene and 'ExampleComponent' class
-    for more details. \n\nNamespace 'Mimimi.SpreadsheetsSerialization' contains every
-    class you need to make it work.\n\nNote: All classes of the 'Example' namespace
-    are not necessary to keep."
+    m_LineSpacing: 0.9
+  m_Text: "SpreadsheetsMapper is a simple tool for exposing in-game data to Google
+    Sheets in human-readable format, and providing Read & Edit access to it. \nSome
+    possible applications:\n * Instant delivery of configuration updates to client
+    app;\n * Gathering logs from test devices;\n * Switching between configurations
+    stored in cloud;\n * Back-ups & sort of version control for user data.\n\nSpreadsheetsMapper
+    uses Google Sheets API, so Google Credentials are required to authenticate to
+    the app. \n\nGet the credentials with Google Sheets API web interface:\n      
+    https://developers.google.com/sheets/api\nchoose 'Create credentials' and follow
+    instructions.\n(personally I use Client x509 Certificate)\n\nTo read or write
+    data, create the new instance of MapperService, and invoke 'ReadAsync' or 'WriteAsync'
+    methods. \nSpreadsheetsMapper namespace contains Attributes for marking up your
+    data classes.\nLook for examples in scripts at  'Assets/Scripts/Example'.\n\nThe
+    spreadsheet used in example script:\nhttps://docs.google.com/spreadsheets/d/1SpCGl_1DkSfGl9hX8D4Ale7ektMRwOlr8Q1y9QJISHM"
 --- !u!222 &300226769
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -856,12 +859,6 @@ MonoBehaviour:
           value: 2
     title: tootle
   key: {fileID: 4900000, guid: f3896a62dd3a5094ebd306a6010b7894, type: 3}
-  ezData:
-    strings:
-    - qw
-    - we
-    - er
-    - rt
 --- !u!1 &1179312199
 GameObject:
   m_ObjectHideFlags: 0

@@ -1,6 +1,6 @@
 using System;
 
-namespace RecursiveMapper
+namespace SpreadsheetsMapper
 {
     readonly struct V2Int
     {
