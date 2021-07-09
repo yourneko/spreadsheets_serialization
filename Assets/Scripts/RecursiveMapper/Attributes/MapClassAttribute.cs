@@ -35,9 +35,11 @@ namespace RecursiveMapper
                                ? throw new Exception ("Compact classes can't contain fields of Sheet content type.")
                                : allFields.Where (x => x.FrontType != null && !string.IsNullOrEmpty(x.FrontType.SheetName)).ToArray ();
             CompactFields = allFields.Where (x => x.FrontType is null || string.IsNullOrEmpty(x.FrontType.SheetName))
-                                     .OrderBy (x => x.SortOrder)
+                                     .OrderBy (f => f.GetFieldSortOrder()) 
                                      .ToArray ();
-            Size = CompactFields.Aggregate(new V2Int(0, 0), (s, f) => s.Max(f.GetSize(s).BottomRight));
+            Size = CompactFields.Aggregate(new V2Int(0, 0), (s, f) => s.Max(f.GetSize()));
         }
+
+        internal V2Int GetFieldPos(MapFieldAttribute field) => new V2Int(CompactFields.TakeWhile(x => !Equals(x, field)).Sum(x => x.TypeSizes[0].X), 0);
     }
 }

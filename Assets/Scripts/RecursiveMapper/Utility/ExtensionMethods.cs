@@ -25,6 +25,11 @@ namespace RecursiveMapper
                 attribute.CacheMeta (type);
             return attribute;
         }
+        
+        public static int GetFieldSortOrder(this MapFieldAttribute f) => f.Field.GetCustomAttribute<MapPlacementAttribute>()?.SortOrder
+                                                                      ?? (f.Rank == 0 || (f.CollectionSize?.Count ?? 0) == f.Rank
+                                                                              ? 1000
+                                                                              : int.MaxValue + f.Rank - 2);
 
         public static Type GetEnumeratedType(this Type t) => t.GetTypeInfo ().GetInterfaces ()
                                                               .FirstOrDefault (x => x.IsGenericType && x.GetGenericTypeDefinition () == typeof(IEnumerable<>))
@@ -53,8 +58,6 @@ namespace RecursiveMapper
 
         public static string GetReadRange(this MapClassAttribute type, string sheet, string a2First) =>
             $"'{sheet}'!{a2First}:{SpreadsheetsUtility.WriteA1 (type.Size.Add (SpreadsheetsUtility.ReadA1 (a2First)))}";
-
-        public static Chunked<T> ToChunks<T>(this IEnumerable<T> source, int chunkSize) where T : class => new Chunked<T> (source, chunkSize);
         
         public static V2Int GetHalf(this V2Int target, int rank) => new V2Int ((1 - (rank & 1)) * target.X, (rank & 1) * target.Y);
     }

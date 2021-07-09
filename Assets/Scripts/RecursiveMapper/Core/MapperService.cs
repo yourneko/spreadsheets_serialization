@@ -62,6 +62,8 @@ namespace RecursiveMapper
             service.Dispose ();
         }
 
+#region Write
+        
         void MakeValueRanges(object obj, MapClassAttribute type, string parentName, ICollection<ValueRange> results)
         {
             string name = parentName.JoinSheetNames (type.SheetName);
@@ -75,7 +77,6 @@ namespace RecursiveMapper
             results.Add (new ValueRange{Values = data, MajorDimension = "COLUMNS", Range = type.GetReadRange(name, FirstCell)});
         }
         
-        // todo: offset(int rank, int index) = rank == field.Rank ? field.FrontType.CompactFields.Take(index).Sum(Size.X) : field.GetOffset(rank, index);
         void WriteValueRange(IList<IList<object>> values, MapClassAttribute type, object source, V2Int fromPoint)
         {
             if (type == null)
@@ -95,13 +96,17 @@ namespace RecursiveMapper
             values[pos.X].Add (serializer.Serialize (value));
         }
 
+#endregion
+#region Read: sheets
+
         // There are 4 categories of fields, which are processed by different rules. Arrays may stay empty, but other sheets must be present.
+        // todo: it is asking to be rewritten
         bool ReadObject(object obj, string name, MapClassAttribute type, HashSet<string> sheets, IDictionary<string, Action<IList<IList<object>>>> actions)
         {
             if (type.CompactFields.Any ())
             {
                 if (!sheets.Contains(name)) return false;
-                actions.Add (type.GetReadRange(name, FirstCell), ApplyValueCurried (obj, type));    // all compact fields together
+                actions.Add (type.GetReadRange(name, FirstCell), ApplyValueCurry (obj, type));    // all compact fields together
             }
             foreach (var pair in type.SheetsFields.Where(f => f.Rank > 0 && f.Rank == f.CollectionSize.Count)    // arrays of sheets of fixed size
                                      .SelectMany(field => EnumerateFixedSizedArray((obj, name.JoinSheetNames(field.FrontType.SheetName)), field, 1)
@@ -136,32 +141,45 @@ namespace RecursiveMapper
         {
             var indices = Enumerable.Range(1, f.CollectionSize[rank - 1]);
             return rank > f.CollectionSize.Count - 1 // only for collections of fixed size
-                       ? indices.Select(i => (f.AddChild(array.obj, rank), $"{array.name} {i}"))
+                       ? indices.Select(i => (f.AddChild(array.obj, rank), $"{array.name} {i}"))  // todo: sus, check
                        : indices.SelectMany(i => EnumerateFixedSizedArray((f.AddChild(array.obj, rank), $"{array.name} {i}"), f, rank + 1));
         }
 
-        Action<IList<IList<object>>> ApplyValueCurried(object obj, MapClassAttribute type) => values =>
+#endregion
+#region Read: values
+
+        Action<IList<IList<object>>> ApplyValueCurry(object obj, MapClassAttribute type) => values =>
         {
             foreach (var f in type.CompactFields)
-                Unwrap (f.AddChild (obj, 0), values.Take (f.Borders.Size.X), f, 0);
+                ApplyValue(f.AddChild(obj, 0), values, f, 0, new V2Int(0, 0));
         };
 
-        void ApplyValue(object target, IList<IList<object>> values, MapFieldAttribute field)
+        bool ApplyValue(object target, IList<IList<object>> values, MapFieldAttribute field, int rank, V2Int pos)
         {
-            if (field.FrontType is null) // values should have 1 element there
-                field.AddChild (target, field.Rank, serializer.Deserialize (field.ArrayTypes.Last (), (string)values[0][0]));
-            else foreach (var f in field.FrontType.CompactFields)
-                    Unwrap (f.AddChild (target, 1), values.Take (f.Borders.Size.X), f, 1);
+            if (field.Rank == rank && field.FrontType is null)
+            {
+                field.AddChild (target, rank, serializer.Deserialize (field.ArrayTypes.Last (), (string)values[pos.X][pos.Y]));
+                return true;
+            }
+
+            if (field.Rank == rank)
+                return field.FrontType.CompactFields.All(f => ApplyValue(field.AddChild(target, rank), values, f, 0, pos.Add(field.FrontType.GetFieldPos(f))));
+
+
+            if (field.CollectionSize.Count == field.Rank)
+            {
+                for (int i = 0; i < field.CollectionSize[rank]; i++)
+                    ApplyValue(field.AddChild(target, rank), values, field, rank + 1, pos.Add(field.GetOffset(rank + 1, i)));
+                return true;
+            }
+            
+            int index = 0;
+            while (ApplyValue(field.AddChild(target, rank), values, field, rank + 1, pos.Add(field.GetOffset(rank + 1, index))))
+                index += 1;
+
+            return index > 1;
         }
 
-        void Unwrap(object target, IEnumerable<IList<object>> values, MapFieldAttribute field, int rank) //todo: can be removed. TopLeft corner pos is enough
-        {
-            if (rank == field.Rank)
-                ApplyValue (target, values.ToList (), field);
-            else foreach (var part in (rank & 1) > 0
-                                          ? values.Select (x => (IEnumerable<IList<object>>)x.ToChunks (field.TypeSizes[rank].Y))
-                                          : values.ToChunks (field.TypeSizes[rank].X))
-                    Unwrap (field.AddChild (target, rank), part, field, rank + 1);
-        }
+#endregion
     }
 }
