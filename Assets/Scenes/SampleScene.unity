@@ -527,18 +527,17 @@ MonoBehaviour:
     m_VerticalOverflow: 0
     m_LineSpacing: 0.9
   m_Text: "SpreadsheetsMapper is a simple tool for exposing in-game data to Google
-    Sheets in human-readable format, and providing Read & Edit access to it. \nSome
-    possible applications:\n * Instant delivery of configuration updates to client
-    app;\n * Gathering logs from test devices;\n * Switching between configurations
-    stored in cloud;\n * Back-ups & sort of version control for user data.\n\nSpreadsheetsMapper
-    uses Google Sheets API, so Google Credentials are required to authenticate to
-    the app. \n\nGet the credentials with Google Sheets API web interface:\n      
-    https://developers.google.com/sheets/api\nchoose 'Create credentials' and follow
-    instructions.\n(personally I use Client x509 Certificate)\n\nTo read or write
-    data, create the new instance of MapperService, and invoke 'ReadAsync' or 'WriteAsync'
-    methods. \nSpreadsheetsMapper namespace contains Attributes for marking up your
-    data classes.\nLook for examples in scripts at  'Assets/Scripts/Example'.\n\nThe
-    spreadsheet used in example script:\nhttps://docs.google.com/spreadsheets/d/1SpCGl_1DkSfGl9hX8D4Ale7ektMRwOlr8Q1y9QJISHM"
+    Sheets in human-readable format, and providing Read & Edit access to it. \n\nOther
+    possible applications include:\n * Instant delivery of configuration updates
+    to client app;\n * Aggregating logs from test devices;\n * Back-ups & version
+    control of user data.\n\nSpreadsheetsMapper uses Google Sheets API, so authenticating
+    to the app requires Google Credentials. \n\nGet the credentials with Google Sheets
+    API web interface:\n       https://developers.google.com/sheets/api\nchoose 'Create
+    credentials' and follow instructions.\n(personally I use Client x509 Certificate)\n\nSpreadsheetsMapper
+    namespace contains Attributes for marking up your data classes.\nLook for examples
+    in scripts at  'Assets/Scripts/Example'.\nWhen data classes are marked up, create
+    a new instance of MapperService class, and look for 'ReadAsync' and 'WriteAsync'
+    methods. \n\nThe spreadsheet used in example script:\nhttps://docs.google.com/spreadsheets/d/1SpCGl_1DkSfGl9hX8D4Ale7ektMRwOlr8Q1y9QJISHM"
 --- !u!222 &300226769
 CanvasRenderer:
   m_ObjectHideFlags: 0

@@ -1,16 +1,18 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Google.Apis.Services;
 using Google.Apis.Sheets.v4;
 using Google.Apis.Sheets.v4.Data;
+using UnityEngine;
 
 namespace SpreadsheetsMapper
 {
     public sealed class MapperService : IDisposable
     {
-        const string FirstCell = "A2";
+        const string FirstCell = "B2";
 
         readonly SheetsService service;
         readonly IValueSerializer serializer;
@@ -65,29 +67,46 @@ namespace SpreadsheetsMapper
         void MakeValueRanges(object obj, MapClassAttribute type, string parentName, ICollection<ValueRange> results)
         {
             string name = $"{parentName} {type.SheetName}";
-            foreach (var field in type.SheetsFields)
-            foreach ((object o, string s) in (field.Field.GetValue (obj), name).UnwrapArray (field, 1, (s, _, i) => $"{s} {i}"))
-                MakeValueRanges (o, field.FrontType, s, results);
+            foreach (var field in type.SheetsFields) 
+                MakeValueRanges (field.Field.GetValue(obj), field, name, results, 0);
             if (type.CompactFields.Count == 0) return;
 
             var data = new List<IList<object>> ();
-            WriteValueRange (data, type, obj, SpreadsheetsUtility.ReadA1 (FirstCell));
+            WriteValueRange (data, type, obj, V2Int.Zero);
             results.Add (new ValueRange{Values = data, MajorDimension = "COLUMNS", Range = type.GetReadRange(name, FirstCell)});
         }
-        
+
+        void MakeValueRanges(object obj, MapFieldAttribute field, string parentName, ICollection<ValueRange> results, int rank)
+        {
+            if (rank == field.Rank)
+                MakeValueRanges(obj, field.FrontType, $"{parentName} {field.FrontType.SheetName}", results);
+            else if (obj is ICollection c)
+                foreach (var (e, i) in c.Cast<object>().Select((e, i) => (e, i)))
+                    MakeValueRanges(e, field, $"{parentName} {i}", results, rank + 1);
+        }
+
         void WriteValueRange(IList<IList<object>> values, MapClassAttribute type, object source, V2Int fromPoint)
         {
+            //MonoBehaviour.print("write range from: " + fromPoint.ToString());
             if (type == null)
-                WriteSingleValue (values, serializer.Serialize (source), fromPoint);
-            else
-                foreach (var field in type.CompactFields)
-                foreach (var (o, p) in (field.Field.GetValue (source), fromPoint).UnwrapArray(field, 1, (v2, r, i) => field.GetOffset(r,i).Add(v2)))
-                    WriteValueRange (values, field.FrontType, o, p);
+                WriteSingleValue(values, serializer.Serialize(source), fromPoint);
+            else foreach (var field in type.CompactFields)
+                    WriteFieldValues(values, field, field.Field.GetValue(source), fromPoint.Add(type.GetFieldPos(field)), 0);
+        }
+
+        void WriteFieldValues(IList<IList<object>> values, MapFieldAttribute field, object source, V2Int fromPoint, int rank)
+        {
+            if (rank == field.Rank)
+                WriteValueRange(values, field.FrontType, source, fromPoint);
+            else if (source is ICollection c)
+                foreach (var (e, i) in c.Cast<object>().Select((e, i) => (e, i)))
+                    WriteFieldValues(values, field, e, fromPoint.Add(field.TypeOffsets[rank + 1].Scale(i, i)), rank + 1);
         }
 
         void WriteSingleValue(IList<IList<object>> values, object value, V2Int pos)
         {
-            for (int i = values.Count; i < pos.X; i++)
+            UnityEngine.Debug.LogError($"{pos} > {value}");
+            for (int i = values.Count; i <= pos.X; i++)
                 values.Add (new List<object> ());
             for (int i = values[pos.X].Count; i < pos.Y; i++)
                 values[pos.X].Add (null);
@@ -161,16 +180,16 @@ namespace SpreadsheetsMapper
         bool SetFixedSizeArrayValues(object target, IList<IList<object>> values, MapFieldAttribute field, int rank, V2Int pos)
         {
             for (int i = 0; i < field.CollectionSize[rank]; i++)
-                SetValues(field.AddChild(target, rank), values, field, rank + 1, pos.Add(field.GetOffset(rank + 1, i)));
+                SetValues(field.AddChild(target, rank), values, field, rank + 1, pos.Add(field.TypeOffsets[rank + 1].Scale(i, i)));
             return true;
         }
         
         bool SetFreeSizeArrayValues(object target, IList<IList<object>> values, MapFieldAttribute field, int rank, V2Int pos)
         {
-            int index = 0;
-            while (SetValues(field.AddChild(target, rank), values, field, rank + 1, pos.Add(field.GetOffset(rank + 1, index))))
-                index += 1;
-            return index > 1;
+            int i = 0;
+            while (SetValues(field.AddChild(target, rank), values, field, rank + 1, pos.Add(field.TypeOffsets[rank + 1].Scale(i, i))))
+                i += 1;
+            return i > 1;
         }
 
         bool TryGetDeserializedValue(IList<IList<object>> values, MapFieldAttribute field, object target, V2Int pos)

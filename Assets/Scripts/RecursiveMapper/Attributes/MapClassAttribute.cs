@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using UnityEngine;
 
 namespace SpreadsheetsMapper
 {
@@ -31,13 +32,13 @@ namespace SpreadsheetsMapper
                                 .Select (field => field.MapAttribute ())
                                 .Where (x => x != null)
                                 .ToArray ();
-            SheetsFields = string.IsNullOrEmpty (SheetName)
-                               ? throw new Exception ("Compact classes can't contain fields of Sheet content type.")
-                               : allFields.Where (x => x.FrontType != null && !string.IsNullOrEmpty(x.FrontType.SheetName)).ToArray ();
-            CompactFields = allFields.Where (x => x.FrontType is null || string.IsNullOrEmpty(x.FrontType.SheetName))
-                                     .OrderBy (f => f.GetFieldSortOrder()) 
+            SheetsFields = allFields.Where (x => !string.IsNullOrEmpty(x.FrontType?.SheetName ?? string.Empty)).ToArray ();
+            CompactFields = allFields.Where (x => string.IsNullOrEmpty(x.FrontType?.SheetName ?? string.Empty))
+                                     .OrderBy (f => f.Field.GetCustomAttribute<MapPlacementAttribute>()?.SortOrder
+                                                 ?? (f.Rank == 0 || f.Rank == f.CollectionSize.Count ? 1000 : int.MaxValue + f.Rank - 2)) 
                                      .ToArray ();
-            Size = CompactFields.Aggregate(new V2Int(0, 0), (s, f) => s.Max(f.GetSize()));
+            Size = new V2Int(CompactFields.Sum(x => x.TypeSizes[0].X), CompactFields.Max(x => x.TypeSizes[0].Y));
+            MonoBehaviour.print($"Class {type.Name}: size {Size}");
         }
 
         internal V2Int GetFieldPos(MapFieldAttribute field) => new V2Int(CompactFields.TakeWhile(x => !Equals(x, field)).Sum(x => x.TypeSizes[0].X), 0);
