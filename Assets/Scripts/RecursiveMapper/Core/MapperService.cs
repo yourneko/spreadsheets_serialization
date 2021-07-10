@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using Google.Apis.Services;
 using Google.Apis.Sheets.v4;
 using Google.Apis.Sheets.v4.Data;
-using UnityEngine;
 
 namespace SpreadsheetsMapper
 {
@@ -79,10 +78,10 @@ namespace SpreadsheetsMapper
         void MakeValueRanges(object obj, MapFieldAttribute field, string parentName, ICollection<ValueRange> results, int rank)
         {
             if (rank == field.Rank)
-                MakeValueRanges(obj, field.FrontType, $"{parentName} {field.FrontType.SheetName}", results);
+                MakeValueRanges(obj, field.FrontType, parentName, results);
             else if (obj is ICollection c)
                 foreach (var (e, i) in c.Cast<object>().Select((e, i) => (e, i)))
-                    MakeValueRanges(e, field, $"{parentName} {i}", results, rank + 1);
+                    MakeValueRanges(e, field, $"{parentName} {i + 1}", results, rank + 1);
         }
 
         void WriteValueRange(IList<IList<object>> values, MapClassAttribute type, object source, V2Int fromPoint)
@@ -105,7 +104,6 @@ namespace SpreadsheetsMapper
 
         void WriteSingleValue(IList<IList<object>> values, object value, V2Int pos)
         {
-            UnityEngine.Debug.LogError($"{pos} > {value}");
             for (int i = values.Count; i <= pos.X; i++)
                 values.Add (new List<object> ());
             for (int i = values[pos.X].Count; i < pos.Y; i++)

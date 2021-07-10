@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Example
 {
-    [Serializable, MapClass ("Group {0}")]
+    [Serializable, MapClass ("Group")]
     public class SuperclassData
     {
         [SerializeField, MapField, MapPlacement(SortOrder = 1)] ExampleData[] data;

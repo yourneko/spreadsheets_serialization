@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using UnityEngine;
 
 namespace SpreadsheetsMapper
 {
@@ -38,7 +37,6 @@ namespace SpreadsheetsMapper
                                                  ?? (f.Rank == 0 || f.Rank == f.CollectionSize.Count ? 1000 : int.MaxValue + f.Rank - 2)) 
                                      .ToArray ();
             Size = new V2Int(CompactFields.Sum(x => x.TypeSizes[0].X), CompactFields.Max(x => x.TypeSizes[0].Y));
-            MonoBehaviour.print($"Class {type.Name}: size {Size}");
         }
 
         internal V2Int GetFieldPos(MapFieldAttribute field) => new V2Int(CompactFields.TakeWhile(x => !Equals(x, field)).Sum(x => x.TypeSizes[0].X), 0);

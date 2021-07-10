@@ -8,6 +8,6 @@ namespace Example
     {
         [MapField, SerializeField] string name;
         [MapField, SerializeField] int subvalue;
-        [MapField(3), SerializeField] StructData[] keyValueArray;
+        [MapField(2), SerializeField] StructData[] keyValueArray;
     }
 }

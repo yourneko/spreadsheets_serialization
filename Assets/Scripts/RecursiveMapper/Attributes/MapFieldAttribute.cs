@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using UnityEngine;
 
 namespace SpreadsheetsMapper
 {
@@ -43,7 +42,6 @@ namespace SpreadsheetsMapper
                                    : sizes[i].Scale((int) Math.Pow(CollectionSize[i - 1], 1 - (i & 1)), (int) Math.Pow(CollectionSize[i - 1], i & 1));
             TypeSizes   = sizes;
             TypeOffsets = TypeSizes.Select((v2, i) => new V2Int(v2.X * (1 - (i & 1)), v2.Y * (i & 1))).ToArray();
-            MonoBehaviour.print($"Field {Field.Name} of type {Field.FieldType}: rank {Rank}, sizes {string.Join(" ", TypeSizes)}");
         }
     }
 }

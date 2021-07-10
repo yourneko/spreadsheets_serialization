@@ -30,9 +30,10 @@ namespace SpreadsheetsMapper
             yield return fieldType;
             int rank = 0;
             var t = fieldType;
-            while (++rank <= max && t != typeof(string) && (t = t.GetTypeInfo().GetInterfaces()
-                                                                 .FirstOrDefault(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(IEnumerable<>))
-                                                                ?.GetGenericArguments()[0]) != null)
+            while (++rank <= max && t != typeof(string)     // never go for char[]
+                                 && (t = t.GetTypeInfo().GetInterfaces()
+                                          .FirstOrDefault(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+                                         ?.GetGenericArguments()[0]) != null)
                 yield return t;
         }
 
