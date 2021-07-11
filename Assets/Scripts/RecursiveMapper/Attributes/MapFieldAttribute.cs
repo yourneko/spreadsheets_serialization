@@ -9,7 +9,7 @@ namespace SpreadsheetsMapper
     [AttributeUsage (AttributeTargets.Field)]
     public sealed class MapFieldAttribute : Attribute
     {
-        public readonly IReadOnlyList<int> CollectionSize;
+        public readonly IReadOnlyList<int> CollectionSize; // todo: bool OPTIONAL  or  bool REQUIRED   idk what is better 
 
         internal bool Initialized { get; private set; }
         internal MapClassAttribute FrontType { get; private set; }

@@ -12,9 +12,10 @@ namespace SpreadsheetsMapper
         public readonly string SheetName;
 
         internal bool Initialized { get; private set; }
+        internal Type Type { get; private set; }
+        internal V2Int Size { get; private set; }
         internal IReadOnlyList<MapFieldAttribute> CompactFields { get; private set; }
         internal IReadOnlyList<MapFieldAttribute> SheetsFields { get; private set; }
-        internal V2Int Size { get; private set; }
 
         /// <summary>Map this class to Google Spreadsheets.</summary>
         /// <param name="sheetName">Types with a sheet name always occupy the whole sheet.</param>
@@ -27,6 +28,7 @@ namespace SpreadsheetsMapper
         internal void CacheMeta(Type type)
         {
             Initialized = true;
+            Type        = type;
             var allFields = type.GetFields (BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                                 .Select (field => field.MapAttribute ())
                                 .Where (x => x != null)
