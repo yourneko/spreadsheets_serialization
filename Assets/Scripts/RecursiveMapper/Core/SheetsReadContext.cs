@@ -1,26 +1,28 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Google.Apis.Sheets.v4.Data;
 using UnityEngine;
 
 namespace SpreadsheetsMapper
 {
-    class DeserializationContext
+    class SheetsReadContext
     {
-        public readonly IDictionary<string, Action<ValueRange>> Dictionary = new Dictionary<string, Action<ValueRange>>();
+        public readonly IDictionary<string, Func<ValueRange, bool>> Dictionary = new Dictionary<string, Func<ValueRange, bool>>();
         readonly HashSet<string> sheets;
         readonly IValueSerializer serializer;
 
-        public DeserializationContext(IValueSerializer serializer, IEnumerable<string> sheets)
+        public SheetsReadContext(IValueSerializer serializer, IEnumerable<string> sheets)
         {
             this.serializer = serializer;
             this.sheets     = new HashSet<string>(sheets);
+            Debug.Log($"SheetsReadContext created. Spreadsheet contains {this.sheets.Count} sheets.");
         }
         
-        public bool TryGetClass(MapClassAttribute type, string parentName, out object result)
+        public bool TryGetClass(MapClassAttribute type, string parentName, out object result) // todo: is it replaceable by TrySetObject/TryParse like methods?
         {
             result = Activator.CreateInstance(type.Type);
-            var name = $"{parentName} {type.SheetName}";
+            var name = $"{parentName} {type.SheetName}".Trim();
 
             foreach (var field in type.SheetsFields)
                 field.Field.SetValue(result, field.Rank > 0
@@ -30,10 +32,10 @@ namespace SpreadsheetsMapper
                                                  : TryGetClass(field.FrontType, name, out var obj) ? obj : null);
             if (type.CompactFields.Count <= 0) 
                 return true;
-            
-            bool success = sheets.Contains(name);  
+
+            bool success = sheets.Contains(name);
             if (success)
-                Dictionary.Add(name, FillCompactFieldsAction(type, result));
+                Dictionary.Add(type.GetRange(name, MapperService.FirstCell), FillCompactFieldsAction(type, result));
             return success;
         }
 
@@ -58,54 +60,51 @@ namespace SpreadsheetsMapper
             return index > 1 || rank == 0;
         }
 
-        Action<ValueRange> FillCompactFieldsAction(MapClassAttribute type, object target) => r => ParseClass(r.Values, target, type, V2Int.Zero);
-
-        void ParseClass(IList<IList<object>> values, object target, MapClassAttribute type, V2Int from)
+        Func<ValueRange, bool> FillCompactFieldsAction(MapClassAttribute type, object target) => r => 
+            type.CompactFields.Select((f, i) => TrySetObject(r.Values, target, f, 0, i, V2Int.Zero)).ToArray().Any(x => x);
+        
+        bool TrySetObject(IList<IList<object>> values, object parent, MapFieldAttribute f, int rank, int index, V2Int from)
         {
-            var pos = from;
-            foreach (var field in type.CompactFields)
-            {
-                TryParse(values, target, field, 0, pos);
-                pos = pos.Add(field.TypeSizes[0]);
-            }
+            return rank != f.Rank
+                       ? TryParse(values, f.AddChild(parent, rank), f, rank, from)
+                       : f.FrontType != null
+                           ? TryParse(values, f.AddChild(parent, rank), f.FrontType.CompactFields[index], 0, from)
+                           : TryGetValue(values, parent, f, rank, from);
         }
         
-        bool TryParse(IList<IList<object>> values, object target, MapFieldAttribute field, int rank, V2Int from)
+        bool TryParse(IList<IList<object>> values, object target, MapFieldAttribute f, int rank, V2Int from) 
         {
-            if (rank == field.Rank)
+            if (f.Rank == rank)
             {
-                if (field.FrontType is null)
-                {
-                    var b = TryGetValue(values, field.ArrayTypes[rank], from, out var o);
-                    field.AddChild(target, rank, b ? o : null);
-                    return b;
-                }
-                ParseClass(values, field.AddChild(target, rank), field.FrontType, from);
+                var pos = from;
+                return f.FrontType.CompactFields
+                        .Select((ff, i) => TrySetObject(values, target, ff, rank, i, pos = pos.Add(ff.TypeOffsets[0].Scale(i)))).ToArray().Any(x => x);
+            }
+
+            if (f.CollectionSize.Count > 0)
+            {
+                for (int i = 0; i < f.CollectionSize[rank]; i++)
+                    TrySetObject(values, target, f, rank + 1, i, from.Add(f.TypeOffsets[rank + 1].Scale(i)));
                 return true;
             }
-            if (field.CollectionSize.Count > 0)
-            {
-                for (int i = 0; i < field.CollectionSize[rank]; i++)
-                    TryParse(values, field.AddChild(target, rank + 1), field, rank + 1, from.Add(field.TypeOffsets[rank + 1].Scale(i, i)));
-                return true;
-            }
+            
             int index = 0;
-            while (TryParse(values, field.AddChild(target, rank + 1), field, rank + 1, from.Add(field.TypeOffsets[rank + 1].Scale(index, index))))
+            while (TrySetObject(values, target, f, rank + 1, index, from.Add(f.TypeOffsets[rank + 1].Scale(index))))
                 index += 1;
             return index > 0;
         }
-
-        bool TryGetValue(IList<IList<object>> values, Type type, V2Int from, out object target)
+        
+        bool TryGetValue(IList<IList<object>> values, object target, MapFieldAttribute f, int rank, V2Int from)
         {
             try
             {
-                target = serializer.Deserialize(type, values[from.X][from.Y]);
+                f.AddChild(target, rank, serializer.Deserialize(f.ArrayTypes[rank], values[from.X][from.Y]));
                 return true;
             }
             catch (Exception e)
             {
                 Debug.LogError(e);
-                target = null;
+                f.AddChild(target, rank, default);
                 return false;
             }
         }

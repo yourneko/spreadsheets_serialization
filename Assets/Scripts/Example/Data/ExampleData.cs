@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace Example
 {
-    [Serializable, MapClass ("ExampleSheet")]
+    [Serializable, MapClass ("Example'Sheet")]
     public class ExampleData
     {
         [MapField, MapPlacement (SortOrder = 5), SerializeField] string[] ss1;

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using Google.Apis.Sheets.v4.Data;
 
 namespace SpreadsheetsMapper
 {
@@ -47,7 +48,14 @@ namespace SpreadsheetsMapper
             return childToAdd;
         }
 
-        public static string GetReadRange(this MapClassAttribute type, string sheet, string a2First) =>
-            $"'{sheet}'!{a2First}:{SpreadsheetsUtility.WriteA1 (type.Size.Add (SpreadsheetsUtility.ReadA1 (a2First)))}";
+        public static string GetRange(this MapClassAttribute type, string sheet, string a2First) =>
+            $"'{sheet.Trim()}'!{a2First}:{SpreadsheetsUtility.WriteA1 (type.Size.Add (SpreadsheetsUtility.ReadA1 (a2First)))}";
+
+        public static bool MatchRange(this ValueRange range, string name) =>
+            StringComparer.Ordinal.Equals(range.Range.GetSheetFromRange(), name.GetSheetFromRange())
+         && StringComparer.OrdinalIgnoreCase.Equals(range.Range.GetFirstCellFromRange(), name.GetFirstCellFromRange());
+
+        public static string GetSheetFromRange(this string range) => range.Split('!')[0].Replace("''", "'").Trim('\'', ' ');
+        static string GetFirstCellFromRange(this string range) => range.Split('!')[1].Split(':')[0];
     }
 }

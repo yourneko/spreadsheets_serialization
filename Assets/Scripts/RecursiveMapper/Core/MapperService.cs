@@ -6,12 +6,13 @@ using System.Threading.Tasks;
 using Google.Apis.Services;
 using Google.Apis.Sheets.v4;
 using Google.Apis.Sheets.v4.Data;
+using UnityEngine;
 
 namespace SpreadsheetsMapper
 {
     public sealed class MapperService : IDisposable
     {
-        const string FirstCell = "B2";
+        internal const string FirstCell = "B2";
 
         readonly SheetsService service;
         readonly IValueSerializer serializer;
@@ -24,13 +25,16 @@ namespace SpreadsheetsMapper
         public async Task<T> ReadAsync<T>(string spreadsheet, string sheet = "")
         {
             var spreadsheets = await service.GetSpreadsheetAsync(spreadsheet);
-            var context = new DeserializationContext(serializer, spreadsheets.GetSheetsList());
+            var context = new SheetsReadContext(serializer, spreadsheets.GetSheetsList());
             if (!context.TryGetClass(typeof(T).MapAttribute(), sheet, out var result))
                 throw new Exception("Can't parse the requested object. Data is missing in the provided spreadsheet");
 
             var valueRanges = await service.GetValueRanges (spreadsheet, context.Dictionary.Select(x => x.Key));
-            foreach (var pair in context.Dictionary)
-                pair.Value.Invoke (valueRanges.FirstOrDefault (x => x.Range == pair.Key));
+            foreach (var range in valueRanges)
+            {
+                Debug.Log(range.Range);
+                context.Dictionary.First(pair => range.MatchRange(pair.Key)).Value.Invoke(range);
+            }
             return (T)result;
         }
 
@@ -61,6 +65,7 @@ namespace SpreadsheetsMapper
             service.Dispose ();
         }
 
+        // todo: is it replaceable by TrySetObject/TryParse like methods?
         void MakeValueRanges(object obj, MapFieldAttribute field, string parentName, ICollection<ValueRange> results, int rank)
         {
             if (rank == field.Rank)
@@ -79,7 +84,7 @@ namespace SpreadsheetsMapper
 
             var data = new List<IList<object>> ();
             WriteObject (data, type, obj, V2Int.Zero);
-            results.Add (new ValueRange{Values = data, MajorDimension = "COLUMNS", Range = type.GetReadRange(name, FirstCell)});
+            results.Add (new ValueRange{Values = data, MajorDimension = "COLUMNS", Range = type.GetRange(name, FirstCell)});
         }
 
         void WriteObject(IList<IList<object>> values, MapClassAttribute type, object source, V2Int fromPoint)
@@ -96,7 +101,7 @@ namespace SpreadsheetsMapper
                 WriteObject(values, field.FrontType, source, fromPoint);
             else if (source is ICollection c)
                 foreach (var (e, i) in c.Cast<object>().Select((e, i) => (e, i)))
-                    WriteFieldContent(values, field, e, fromPoint.Add(field.TypeOffsets[rank + 1].Scale(i, i)), rank + 1);
+                    WriteFieldContent(values, field, e, fromPoint.Add(field.TypeOffsets[rank + 1].Scale(i)), rank + 1);
         }
 
         void WriteValue(IList<IList<object>> values, object value, V2Int pos)

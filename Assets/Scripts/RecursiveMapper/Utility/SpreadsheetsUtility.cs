@@ -7,6 +7,7 @@ using Google.Apis.Requests;
 using Google.Apis.Sheets.v4;
 using Google.Apis.Sheets.v4.Data;
 using Google.Apis.Util;
+using UnityEngine;
 
 namespace SpreadsheetsMapper
 {
@@ -19,7 +20,7 @@ namespace SpreadsheetsMapper
         
         public static async Task<bool> WriteRangesAsync(this SheetsService service, string spreadsheet, IList<ValueRange> values)
         {
-            var hashset = new HashSet<string> (values.Select (range => range.Range.Split ('!')[0].Trim ('\'')));
+            var hashset = new HashSet<string> (values.Select (range => range.Range.GetSheetFromRange()));
             var hasRequiredSheets = await service.CreateSheetsAsync (spreadsheet, hashset);
             if (!hasRequiredSheets)
                 return false;
@@ -35,6 +36,7 @@ namespace SpreadsheetsMapper
         {
             var request = service.Spreadsheets.Values.BatchGet (spreadsheet);
             request.Ranges         = ranges.ToArray();
+            Debug.Log(string.Join(Environment.NewLine, request.Ranges));
             request.MajorDimension = SpreadsheetsResource.ValuesResource.BatchGetRequest.MajorDimensionEnum.COLUMNS;
             var result = await request.AddBackOffHandler().ExecuteAsync ();
             return result.ValueRanges;

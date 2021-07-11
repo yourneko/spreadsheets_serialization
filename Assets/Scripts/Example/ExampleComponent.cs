@@ -54,7 +54,6 @@ namespace Example
         }
 
         async Task Read<T>(Action<T> callback)
-            where T : new()
         {
             var result = await service.ReadAsync<T> (testSpreadsheetID);
             print (result is null ? "Failed." : "The requested object was successfully created.");
