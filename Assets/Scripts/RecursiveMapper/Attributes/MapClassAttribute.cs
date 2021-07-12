@@ -38,9 +38,12 @@ namespace SpreadsheetsMapper
                                      .OrderBy (f => f.Field.GetCustomAttribute<MapPlacementAttribute>()?.SortOrder
                                                  ?? (f.Rank == 0 || f.Rank == f.CollectionSize.Count ? 1000 : int.MaxValue + f.Rank - 2)) 
                                      .ToArray ();
-            Size = new V2Int(CompactFields.Sum(x => x.TypeSizes[0].X), CompactFields.Max(x => x.TypeSizes[0].Y));
+            Size = V2Int.Zero;
+            foreach (var f in CompactFields)
+            {
+                f.PosInType = new V2Int(Size.X, 0);
+                Size        = new V2Int(Size.X + f.TypeSizes[0].X, Math.Max(Size.Y, f.TypeSizes[0].Y));
+            }
         }
-
-        internal V2Int GetFieldPos(MapFieldAttribute field) => new V2Int(CompactFields.TakeWhile(x => !Equals(x, field)).Sum(x => x.TypeSizes[0].X), 0);
     }
 }

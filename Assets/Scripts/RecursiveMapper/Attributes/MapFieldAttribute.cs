@@ -10,7 +10,8 @@ namespace SpreadsheetsMapper
     public sealed class MapFieldAttribute : Attribute
     {
         public readonly IReadOnlyList<int> CollectionSize; // todo: bool OPTIONAL  or  bool REQUIRED   idk what is better 
-
+        
+        internal V2Int PosInType;
         internal bool Initialized { get; private set; }
         internal MapClassAttribute FrontType { get; private set; }
         internal FieldInfo Field { get; private set; }
@@ -20,7 +21,7 @@ namespace SpreadsheetsMapper
         internal IReadOnlyList<V2Int> TypeOffsets { get; private set; }
 
         /// <summary>Map this field to Google Spreadsheets.</summary>
-        /// <param name="fixedCollectionSize">  </param>
+        /// <param name="fixedCollectionSize">Fixed number of elements for each rank of array.</param>
         public MapFieldAttribute(params int[] fixedCollectionSize)
         {
             CollectionSize = fixedCollectionSize;
@@ -38,7 +39,7 @@ namespace SpreadsheetsMapper
             sizes[Rank] = FrontType?.Size ?? new V2Int (1, 1);
             for (int i = Rank; i > 0; i--)
                 sizes[i - 1] = CollectionSize.Count == 0
-                                   ? sizes[i].Max(new V2Int(999 * ((i + 1) & 1), 999))
+                                   ? sizes[i].Max(new V2Int(999 * ((i - 1) & 1), 999))
                                    : sizes[i].Scale((int) Math.Pow(CollectionSize[i - 1], 1 - (i & 1)), (int) Math.Pow(CollectionSize[i - 1], i & 1));
             TypeSizes   = sizes;
             TypeOffsets = TypeSizes.Select((v2, i) => new V2Int(v2.X * (1 - (i & 1)), v2.Y * (i & 1))).ToArray();

@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -9,7 +10,6 @@ namespace SpreadsheetsMapper
     static class ExtensionMethods
     {
         static readonly MethodInfo addMethodInfo = typeof(ICollection<>).GetMethod ("Add", BindingFlags.Instance | BindingFlags.Public);
-
         public static MapFieldAttribute MapAttribute(this FieldInfo field)
         {
             var attribute = (MapFieldAttribute)Attribute.GetCustomAttribute (field, typeof(MapFieldAttribute));
@@ -28,24 +28,27 @@ namespace SpreadsheetsMapper
 
         public static IEnumerable<Type> GetArrayTypes(this Type fieldType, int max)
         {
-            yield return fieldType;
             int rank = 0;
             var t = fieldType;
-            while (++rank <= max && t != typeof(string)     // never go for char[]
-                                 && (t = t.GetTypeInfo().GetInterfaces()
-                                          .FirstOrDefault(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(IEnumerable<>))
-                                         ?.GetGenericArguments()[0]) != null)
-                yield return t;
+            do yield return t;
+            while (++rank <= max
+                && t != typeof(string)      // nobody like char[]
+                && (t = t.GetTypeInfo().GetInterfaces()
+                         .FirstOrDefault(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(ICollection<>))?.GetGenericArguments()[0]) != null);
         }
-
-        public static object AddChild(this MapFieldAttribute field, object parent, int rank, object child = null)
-        {
-            var childToAdd = child ?? Activator.CreateInstance (field.ArrayTypes[rank]);
+        
+        public static object AddChild(this MapFieldAttribute field, object parent, int rank, int index, object child)// field.ArrayTypes[rank] is Type of child
+        { 
             if (rank == 0)
-                field.Field.SetValue (parent, childToAdd);
+                field.Field.SetValue(parent, child);
+            else if (field.ArrayTypes[rank] != typeof(string) && parent is IList array)
+            {
+                if (array.Count > index) array[index] = child;
+                else array.Add(child);
+            }
             else
-                addMethodInfo.MakeGenericMethod (field.ArrayTypes[rank]).Invoke (parent, new[] {childToAdd});
-            return childToAdd;
+                addMethodInfo.MakeGenericMethod(field.ArrayTypes[rank]).Invoke(parent, new[] {child});
+            return child;
         }
 
         public static string GetRange(this MapClassAttribute type, string sheet, string a2First) =>

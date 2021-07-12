@@ -5,11 +5,11 @@ using UnityEngine;
 
 namespace Example
 {
-    [Serializable, MapClass ("Example'Sheet")]
+    [Serializable, MapClass ("ExampleSheet")]
     public class ExampleData
     {
         [MapField, MapPlacement (SortOrder = 5), SerializeField] string[] ss1;
-        [MapField, MapPlacement (SortOrder = 3), SerializeField] List<string> ss2;
+        [MapField, MapPlacement (SortOrder = 3), SerializeField] List<string> ss2; 
         [MapField, MapPlacement (SortOrder = 2), SerializeField] StructData keyValueArray;
         [MapField, MapPlacement (SortOrder = 0), SerializeField] string s;
         [MapField, MapPlacement (SortOrder = 4), SerializeField] int i;

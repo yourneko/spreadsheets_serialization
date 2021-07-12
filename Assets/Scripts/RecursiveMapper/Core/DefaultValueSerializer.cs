@@ -35,5 +35,8 @@ namespace SpreadsheetsMapper
                                                                         ? func.Invoke(string.Empty)
                                                                         : func.Invoke((string) value)
                                                                   : throw new NotSupportedException(NotSupportedTypeMessage(type));
+        
+        //var type = idFieldInfo.PropertyType;
+        //idFieldInfo.SetValue(entity, Convert.ChangeType(id, type), null);
     }
 }

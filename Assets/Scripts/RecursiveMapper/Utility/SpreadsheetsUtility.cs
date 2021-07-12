@@ -7,7 +7,6 @@ using Google.Apis.Requests;
 using Google.Apis.Sheets.v4;
 using Google.Apis.Sheets.v4.Data;
 using Google.Apis.Util;
-using UnityEngine;
 
 namespace SpreadsheetsMapper
 {
@@ -17,7 +16,6 @@ namespace SpreadsheetsMapper
         const int A1LettersCount = 26;
 
 #region Async requests
-        
         public static async Task<bool> WriteRangesAsync(this SheetsService service, string spreadsheet, IList<ValueRange> values)
         {
             var hashset = new HashSet<string> (values.Select (range => range.Range.GetSheetFromRange()));
@@ -35,8 +33,7 @@ namespace SpreadsheetsMapper
         public static async Task<IList<ValueRange>> GetValueRanges(this SheetsService service, string spreadsheet, IEnumerable<string> ranges)
         {
             var request = service.Spreadsheets.Values.BatchGet (spreadsheet);
-            request.Ranges         = ranges.ToArray();
-            Debug.Log(string.Join(Environment.NewLine, request.Ranges));
+            request.Ranges = ranges.ToArray(); 
             request.MajorDimension = SpreadsheetsResource.ValuesResource.BatchGetRequest.MajorDimensionEnum.COLUMNS;
             var result = await request.AddBackOffHandler().ExecuteAsync ();
             return result.ValueRanges;
@@ -46,13 +43,11 @@ namespace SpreadsheetsMapper
         {
             var spreadsheets = await service.GetSpreadsheetAsync(spreadsheet);
             var sheetsToCreate = requiredSheets.Except(spreadsheets.GetSheetsList()).ToArray();
-            if (sheetsToCreate.Length == 0)
-                return true;
+            if (sheetsToCreate.Length == 0) return true;
             
             var result = await service.Spreadsheets.BatchUpdate (AddSheet (sheetsToCreate), spreadsheet).AddBackOffHandler().ExecuteAsync ();
             return result.Replies.All(reply => reply.AddSheet.Properties != null);
         }
-
 #endregion
         
         static ClientServiceRequest<T> AddBackOffHandler<T>(this ClientServiceRequest<T> request, BackOffHandler handler = null)
@@ -67,12 +62,11 @@ namespace SpreadsheetsMapper
         static BatchUpdateValuesRequest UpdateRequest(IList<ValueRange> data) => new BatchUpdateValuesRequest { Data = data, ValueInputOption = "USER_ENTERED" };
 
 #region Google Sheets A1 Notation
-        
-        // IMPORTANT! Indices 'x' and 'y' are counted from 0. The point (0,0) corresponds to A1 cell
         public static V2Int ReadA1(string a1) => new V2Int(Evaluate(a1.Where(char.IsLetter).Select(char.ToUpperInvariant), '@', A1LettersCount),
                                                            Evaluate(a1.Where(char.IsDigit), '0', 10));
 
-        public static string WriteA1(V2Int a1) => new string(ToLetters (a1.X).ToArray()) + (a1.Y + 1);
+        public static string WriteA1(V2Int a1) => (a1.X >= 999 ? string.Empty : new string(ToLetters (a1.X).ToArray())) 
+                                                + (a1.Y >= 999 ? string.Empty : (a1.Y + 1).ToString());
 
         static IEnumerable<char> ToLetters(int number) => number < A1LettersCount
                                                               ? new[]{(char)('A' + number)}
@@ -81,9 +75,8 @@ namespace SpreadsheetsMapper
         static int Evaluate(IEnumerable<char> digits, char zero, int @base)
         {
             int result = (int)digits.Reverse ().Select ((c, i) => (c - zero) * Math.Pow (@base, i)).Sum ();
-            return result-- > 0 ? result : 999; // In Google Spreadsheets notation, upper boundary of the range may be missing - it means 'up to a big number'
+            return result-- > 0 ? result : 999; // In Google Sheets notation, upper boundary of the range may be missing - it means "up to a big number"
         }
-
 #endregion
     }
 }
