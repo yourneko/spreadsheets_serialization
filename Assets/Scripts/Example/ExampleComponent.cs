@@ -2,7 +2,6 @@
 using System.Threading.Tasks;
 using Google.Apis.Auth.OAuth2;
 using Google.Apis.Services;
-using SpreadsheetsMapper;
 using UnityEngine;
 
 namespace Example
@@ -13,20 +12,21 @@ namespace Example
         [SerializeField] string testSpreadsheetID;
         [SerializeField] ExampleData data = new ExampleData ();
         [SerializeField] SuperclassData someSheetsData = new SuperclassData ();
+        [SerializeField] SimpleData simple;
 
         [SerializeField] TextAsset key;
 
-        MapperService service;
+        SheetsIO.SheetsIO service;
 
         void Start()
         {
             var httpInit = GoogleCredential.FromJson (key.text).CreateScoped ("https://spreadsheets.google.com/feeds", "https://docs.google.com/feeds");
-            service = new MapperService (new BaseClientService.Initializer
-                                         {
-                                             HttpClientInitializer = httpInit,
-                                             ApplicationName       = "SheetsSerialization",
-                                             GZipEnabled           = Application.isEditor || Application.platform != RuntimePlatform.Android
-                                         });
+            service = new SheetsIO.SheetsIO (new BaseClientService.Initializer
+                                             {
+                                                 HttpClientInitializer = httpInit,
+                                                 ApplicationName       = "SheetsSerialization",
+                                                 GZipEnabled           = Application.isEditor || Application.platform != RuntimePlatform.Android
+                                             });
         }
 
         public void WriteData() => InvokeSafe (Write (data));
@@ -34,6 +34,8 @@ namespace Example
 
         public void ReadData() => InvokeSafe (Read<ExampleData> (x => target.data = x));
         public void ReadSheets() => InvokeSafe (Read<SuperclassData> (x => target.someSheetsData = x));
+        public void ReadSimple() => InvokeSafe (Read<SimpleData> (s => simple = s));
+        public void ReadSimpleFail() => InvokeSafe (Read<SimpleData> (s => simple = s, "FailOn"));
 
         static async void InvokeSafe(Task task)
         {
@@ -43,7 +45,7 @@ namespace Example
             }
             catch (Exception e)
             {
-                print (e);
+                Debug.LogError(e);
             }
         }
 
@@ -53,9 +55,9 @@ namespace Example
             print (result ? "Sheets were successfully updated." : "Write task failed");
         }
 
-        async Task Read<T>(Action<T> callback)
+        async Task Read<T>(Action<T> callback, string sheet = null)
         {
-            var result = await service.ReadAsync<T> (testSpreadsheetID);
+            var result = await service.ReadAsync<T> (testSpreadsheetID, sheet ?? string.Empty);
             print (result is null ? "Failed." : "The requested object was successfully created.");
             callback.Invoke (result);
         }

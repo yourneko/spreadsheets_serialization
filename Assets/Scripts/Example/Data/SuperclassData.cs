@@ -1,13 +1,13 @@
 ﻿using System;
-using SpreadsheetsMapper;
+using SheetsIO;
 using UnityEngine;
 
 namespace Example
 {
-    [Serializable, MapClass ("Group")]
+    [Serializable, IOMeta ("Group")]
     public class SuperclassData
     {
-        [SerializeField, MapField, MapPlacement(SortOrder = 1)] ExampleData[] data;
-        [SerializeField, MapField, MapPlacement(SortOrder = 0)] string title;
+        [SerializeField, IOField(2)] ExampleData[] data;
+        [SerializeField, IOField, IOPlacement(SortOrder = 0)] string title;
     }
 }

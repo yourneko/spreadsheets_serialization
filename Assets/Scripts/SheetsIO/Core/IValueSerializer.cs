@@ -1,6 +1,6 @@
 using System;
 
-namespace SpreadsheetsMapper
+namespace SheetsIO
 {
     /// <summary>Provides a strategy of value serialization.</summary>
     public interface IValueSerializer

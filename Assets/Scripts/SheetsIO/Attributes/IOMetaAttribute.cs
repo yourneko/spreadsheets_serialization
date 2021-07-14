@@ -3,24 +3,25 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 
-namespace SpreadsheetsMapper
+namespace SheetsIO
 {
     /// <summary>Contains metadata of classes.</summary>
     [AttributeUsage (AttributeTargets.Class)]
-    public sealed class MapClassAttribute : Attribute
+    public sealed class IOMetaAttribute : Attribute
     {
         public readonly string SheetName;
 
         internal bool Initialized { get; private set; }
         internal Type Type { get; private set; }
         internal V2Int Size { get; private set; }
-        internal IReadOnlyList<MapFieldAttribute> CompactFields { get; private set; }
-        internal IReadOnlyList<MapFieldAttribute> SheetsFields { get; private set; }
+        internal IReadOnlyList<IOFieldAttribute> CompactFields { get; private set; }
+        internal IReadOnlyList<IOFieldAttribute> SheetsFields { get; private set; }
+        internal bool OptionalInstance { get; private set; }
 
         /// <summary>Map this class to Google Spreadsheets.</summary>
         /// <param name="sheetName">Types with a sheet name always occupy the whole sheet.</param>
         /// <remarks>Avoid loops in hierarchy of types. It will cause the stack overflow.</remarks>
-        public MapClassAttribute(string sheetName = null)
+        public IOMetaAttribute(string sheetName = null)
         {
             SheetName = sheetName;
         }
@@ -30,15 +31,18 @@ namespace SpreadsheetsMapper
             Initialized = true;
             Type        = type;
             var allFields = type.GetFields (BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-                                .Select (field => field.MapAttribute ())
+                                .Select (field => field.GetIOAttribute ())
                                 .Where (x => x != null)
                                 .ToArray ();
-            SheetsFields = allFields.Where (x => !string.IsNullOrEmpty(x.FrontType?.SheetName ?? string.Empty)).ToArray ();
+            if (allFields.Length == 0) 
+                throw new Exception($"Class {type.Name} has no MapFields! Add MapField attribute to some fields in class {type.Name}, or remove the MapClass attribute.");
+            OptionalInstance = allFields.All(x => x.IsOptional);
+            SheetsFields     = allFields.Where (x => !string.IsNullOrEmpty(x.FrontType?.SheetName ?? string.Empty)).ToArray ();
             CompactFields = allFields.Where (x => string.IsNullOrEmpty(x.FrontType?.SheetName ?? string.Empty))
-                                     .OrderBy (f => f.Field.GetCustomAttribute<MapPlacementAttribute>()?.SortOrder
+                                     .OrderBy (f => f.Field.GetCustomAttribute<IOPlacementAttribute>()?.SortOrder
                                                  ?? (f.Rank == 0 || f.Rank == f.CollectionSize.Count ? 1000 : int.MaxValue + f.Rank - 2)) 
                                      .ToArray ();
-            Size = V2Int.Zero;
+            Size = new V2Int(0, 0);
             foreach (var f in CompactFields)
             {
                 f.PosInType = new V2Int(Size.X, 0);

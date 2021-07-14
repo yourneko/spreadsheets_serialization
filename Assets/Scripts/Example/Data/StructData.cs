@@ -1,11 +1,11 @@
 ﻿using System;
-using SpreadsheetsMapper;
+using SheetsIO;
 
 namespace Example
 {
-    [Serializable, MapClass] public class StructData
+    [Serializable, IOMeta] public class StructData
     {
-        [MapField, MapPlacement (SortOrder = 0)] public string key;
-        [MapField] public string value;
+        [IOField, IOPlacement (SortOrder = 0)] public string key;
+        [IOField] public string value;
     }
 }

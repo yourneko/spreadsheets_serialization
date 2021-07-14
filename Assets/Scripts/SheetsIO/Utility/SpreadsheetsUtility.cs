@@ -8,7 +8,7 @@ using Google.Apis.Sheets.v4;
 using Google.Apis.Sheets.v4.Data;
 using Google.Apis.Util;
 
-namespace SpreadsheetsMapper
+namespace SheetsIO
 {
     // Assembling and sending requests to Google Spreadsheets API
     static class SpreadsheetsUtility

@@ -1,6 +1,6 @@
 {
-    "name": "SpreadsheetsMapper",
-    "rootNamespace": "SpreadsheetsMapper",
+    "name": "SheetsIO",
+    "rootNamespace": "SheetsIO",
     "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -10,5 +10,5 @@
     "autoReferenced": true,
     "defineConstraints": [],
     "versionDefines": [],
-    "noEngineReferences": false
+    "noEngineReferences": true
 }

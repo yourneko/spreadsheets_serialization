@@ -1,26 +1,15 @@
-**Spreadsheets Serialization** allows you to map your data to Google Spreadsheets. Made for both study & fun.
-* Serialization and deserialization of any user-made class. No limitations on class nesting;
-* Mark-up uses a small number of attributes, no code required. The mark-up is valid for any context;
-* Deal with _ICollection<>_ types and non-generic array types using an _ArrayAttribute_;
-* The result is configurable and human-readable;
-* Ranges for reading & writing are automatically calculated from the context;
+**SheetsIO** is a simple tool for exposing in-game data to Google Sheets in human-readable format, and providing Read & Edit access to it.Other possible applications include:
+* Instant delivery of configuration updates to client app;
+* Aggregating logs from test devices;
+* Back-ups & version control of user data.
 
-Mark up classes in 2 steps:
+**SheetsIO** uses Google Sheets API, so authenticating to the app requires **Google Credentials**.
+Get the credentials with Google Sheets API web interface:
+https://developers.google.com/sheets/api
 
-First, add a **MapAttribute** to every Field of the class you want to serialize. **MapAttribute** has a required _index_ parameter (bigger = to the right) and an optional _group_ paremeter (bigger = downward, default is 0).
-If the field type is a collection, add an **ArrayAttribute** for each dimension of it. **ArrayAttribute** has a required _direction_ parameter, which specifies the position of the next collection element relative to the previous one.
-**NOTE**. When the collection field has an _ArrayAttribute_, the serializer views it as a set of instances of GenericTypeArguement type of the collection. (repeats for each _ArrayAttribute_)
+**SheetsIO** namespace contains *Attributes* for marking up your data classes.
+Look for examples in scripts at  **Assets/Scripts/Example**.
+When data classes are marked up, create a new instance of *SheetsIO class*, and look for *ReadAsync* and *WriteAsync* methods.
 
-Then, choose an amount of space taken by an instance of given type, and add it to the class definition. Your options are:
-* **[SheetsGroupAttribute]** _SheetsGroup_ is for the largest classes. This attribute allows a single instance to be mapped on multiple sheets. _SheetsGroup_ may include fields of any type. 
-* **[SheetAttribute]** _Sheet_ represents a single sheet, and for obvious reasons it can't contain fields of Sheet or SheetsGroup classes. Any number of _Range_ and _SingleValue_ fields is allowed.
-* **[RangeAttribute]** Every _Range_ class occupies a rectangle of cells of any size. _Range_ can contain only fields of either _Range_ or _SingleValue_ classes.
-* Any type with no class space attribute is _SingleValue_. It's mapped to a single cell and may contain to 
-
-Namespace _Mimimi.SpreadsheetsSerialization_ contains all attributes mentioned above. Also, try inspecting an 'example' object at the scene, and an 'ExampleComponent' class. 
-
-**NOTE**. In order to use Google API, you have to initialize the serialization service with a **service account key**. If you don't have one, Google Spreadsheets starter guide should describe the way to create it.
-
-**NOTE**. Core functionality does not depend on _UnityEngine_. Remove dependencies on Unity:
-* Every invokation of _UnityEngine.Debug.Assert_
-* _ExampleComponent_ and _ExampleTargetComponent_ classes
+The spreadsheet used in example script:
+https://docs.google.com/spreadsheets/d/1SpCGl_1DkSfGl9hX8D4Ale7ektMRwOlr8Q1y9QJISHM
