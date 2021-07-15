@@ -2,6 +2,7 @@ namespace SheetsIO
 {
     readonly struct V2Int
     {
+        public static V2Int Zero => new V2Int(0, 0);
         public readonly int X, Y;
 
         public V2Int(int x, int y)
