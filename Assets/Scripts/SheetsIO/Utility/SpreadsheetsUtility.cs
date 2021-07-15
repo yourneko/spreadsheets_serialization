@@ -13,9 +13,6 @@ namespace SheetsIO
     // Assembling and sending requests to Google Spreadsheets API
     static class SpreadsheetsUtility
     {
-        const int A1LettersCount = 26;
-
-#region Async requests
         public static async Task<bool> WriteRangesAsync(this SheetsService service, string spreadsheet, IList<ValueRange> values)
         {
             var hashset = new HashSet<string> (values.Select (range => range.Range.GetSheetFromRange()));
@@ -48,7 +45,6 @@ namespace SheetsIO
             var result = await service.Spreadsheets.BatchUpdate (AddSheet (sheetsToCreate), spreadsheet).AddBackOffHandler().ExecuteAsync ();
             return result.Replies.All(reply => reply.AddSheet.Properties != null);
         }
-#endregion
         
         static ClientServiceRequest<T> AddBackOffHandler<T>(this ClientServiceRequest<T> request, BackOffHandler handler = null)
         {
@@ -60,23 +56,5 @@ namespace SheetsIO
         static BatchUpdateSpreadsheetRequest AddSheet(IEnumerable<string> list) => new BatchUpdateSpreadsheetRequest {Requests = list.Select (AddSheet).ToList ()};
         static Request AddSheet(string name) => new Request {AddSheet = new AddSheetRequest {Properties = new SheetProperties {Title = name}}};
         static BatchUpdateValuesRequest UpdateRequest(IList<ValueRange> data) => new BatchUpdateValuesRequest { Data = data, ValueInputOption = "USER_ENTERED" };
-
-#region Google Sheets A1 Notation
-        public static V2Int ReadA1(string a1) => new V2Int(Evaluate(a1.Where(char.IsLetter).Select(char.ToUpperInvariant), '@', A1LettersCount),
-                                                           Evaluate(a1.Where(char.IsDigit), '0', 10));
-
-        public static string WriteA1(V2Int a1) => (a1.X >= 999 ? string.Empty : new string(ToLetters (a1.X).ToArray())) 
-                                                + (a1.Y >= 999 ? string.Empty : (a1.Y + 1).ToString());
-
-        static IEnumerable<char> ToLetters(int number) => number < A1LettersCount
-                                                              ? new[]{(char)('A' + number)}
-                                                              : ToLetters (number / A1LettersCount - 1).Append ((char)('A' + number % A1LettersCount));
-
-        static int Evaluate(IEnumerable<char> digits, char zero, int @base)
-        {
-            int result = (int)digits.Reverse ().Select ((c, i) => (c - zero) * Math.Pow (@base, i)).Sum ();
-            return result-- > 0 ? result : 999; // In Google Sheets notation, upper boundary of the range may be missing - it means "up to a big number"
-        }
-#endregion
     }
 }

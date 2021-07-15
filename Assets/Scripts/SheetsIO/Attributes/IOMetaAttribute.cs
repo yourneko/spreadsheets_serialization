@@ -42,7 +42,7 @@ namespace SheetsIO
                                      .OrderBy (f => f.Field.GetCustomAttribute<IOPlacementAttribute>()?.SortOrder
                                                  ?? (f.Rank == 0 || f.Rank == f.CollectionSize.Count ? 1000 : int.MaxValue + f.Rank - 2)) 
                                      .ToArray ();
-            Size = new V2Int(0, 0);
+            Size = V2Int.Zero;
             foreach (var f in CompactFields)
             {
                 f.PosInType = new V2Int(Size.X, 0);

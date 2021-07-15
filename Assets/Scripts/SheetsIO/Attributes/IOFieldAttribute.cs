@@ -11,7 +11,6 @@ namespace SheetsIO
     { 
         /// <summary>Empty optional fields are valid. (Always TRUE for collections)</summary>
         public bool IsOptional;
-
         internal readonly IReadOnlyList<int> CollectionSize;
         internal V2Int PosInType;
         
@@ -49,6 +48,9 @@ namespace SheetsIO
             if (Rank > 0) 
                 ValidateArrayField();
         }
+
+        internal int GetMaxCollectionSize(int rank) => rank >= Rank                ? -1 :
+                                                       rank < CollectionSize.Count ? CollectionSize[rank] : SheetsIO.MaxFreeSizeArrayElements;
 
         void ValidateArrayField()
         {
