@@ -23,7 +23,7 @@ namespace SheetsIO
         public async Task<T> ReadAsync<T>(string spreadsheet, string sheet = "")
         {
             var spreadsheets = await service.GetSpreadsheetAsync(spreadsheet);
-            var context = new ReadObjectContext(spreadsheets.GetSheetsList());
+            var context = new ReadContext(spreadsheets.GetSheetsList());
             var type = typeof(T).GetIOAttribute();
             var result = Activator.CreateInstance<T>();
             if (!context.ReadType(type, $"{sheet} {type.SheetName}".Trim(), result))
@@ -44,8 +44,8 @@ namespace SheetsIO
         /// <typeparam name="T">Type of serialized object.</typeparam>
         public Task<bool> WriteAsync<T>(T obj, string spreadsheet, string sheet = "")
         {
-            var writeObj = new WriteObjectContext(typeof(T).GetIOAttribute(), sheet, obj, serializer);
-            return service.WriteRangesAsync(spreadsheet, writeObj.ValueRanges);
+            var meta = typeof(T).GetIOAttribute();
+            return service.WriteRangesAsync(spreadsheet, new WriteContext(meta, $"{sheet} {meta.SheetName}".Trim(), obj, serializer).ValueRanges);
         }
 
         /// <summary>Creates a new ready-to-use instance of the serializer.</summary>

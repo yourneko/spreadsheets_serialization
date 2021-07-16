@@ -3,12 +3,12 @@ using Google.Apis.Sheets.v4.Data;
 
 namespace SheetsIO
 {
-    readonly struct WriteObjectContext
+    readonly struct WriteContext
     {
         public readonly IList<ValueRange> ValueRanges;
         readonly IValueSerializer s;
 
-        public WriteObjectContext(IOMetaAttribute type, string name, object obj, IValueSerializer serializer)
+        public WriteContext(IOMetaAttribute type, string name, object obj, IValueSerializer serializer)
         {
             ValueRanges = new List<ValueRange>();
             s           = serializer;
@@ -17,7 +17,7 @@ namespace SheetsIO
             
         void WriteType(IOMetaAttribute type, string name, object obj)
         {
-            obj.ForEachChild(type.GetSheetPointers($"{name} {type.SheetName}".Trim()), WriteSheetObject);
+            obj.ForEachChild(type.GetSheetPointers(name), WriteSheetObject);
             if (type.CompactFields.Count == 0) return;
 
             var sheet = new WriteSheetContext(s);

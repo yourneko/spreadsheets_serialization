@@ -4,12 +4,12 @@ using Google.Apis.Sheets.v4.Data;
 
 namespace SheetsIO
 {
-    readonly struct ReadObjectContext
+    readonly struct ReadContext
     {
         public readonly IDictionary<string, Func<ValueRange, IValueSerializer, bool>> Dictionary;
         readonly HashSet<string> sheets;
 
-        public ReadObjectContext(IEnumerable<string> sheets)
+        public ReadContext(IEnumerable<string> sheets)
         {
             this.sheets = new HashSet<string>(sheets);
             Dictionary  = new Dictionary<string, Func<ValueRange, IValueSerializer, bool>>();
