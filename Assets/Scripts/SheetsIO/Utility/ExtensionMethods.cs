@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using UnityEngine;
 
 namespace SheetsIO
 {
@@ -56,36 +55,13 @@ namespace SheetsIO
         }
 #endregion
 #region IOPointer
-        public static object CreateObject(this IOPointer p, object parent) => p.AddChild(parent, Activator.CreateInstance(p.TargetType)); // todo array
-
-        public static object CreateFixedSizeArray(this IOPointer p, object parent) => NewArray(p, parent, p.Field.CollectionSize[p.Rank]);
-
-        public static object CreateFreeSizeArray(this IOPointer p, object parent, IList<IList<object>> values) =>
-            NewArray(p, parent, (p.Rank & 1) == 0
-                                    ? (values.Count - p.Pos.X) / p.Field.TypeSizes[p.Rank + 1].X
-                                    : (values.Skip(p.Pos.X).Take(p.Field.TypeSizes[p.Rank + 1].X).Max(v2 => v2.Count) - p.Pos.Y) / p.Field.TypeSizes[p.Rank + 1].Y);
-
-        static object NewArray(IOPointer p, object parent, int size) => p.AddChild(parent, Array.CreateInstance(p.Field.ArrayTypes[p.Rank + 1], size));
-
-        public static IEnumerable<int> EnumerateIndices(this IOPointer p) =>
-            Enumerable.Range(0, p.Rank < p.Field.CollectionSize.Count ? p.Field.CollectionSize[p.Rank] : SheetsIO.MaxFreeSizeArrayElements);
-
-        public static object AddChild(this IOPointer p, object parent, object child)//todo: do not use directly. include it to 'create child' method
-        {
-            if (p.Rank == 0)
-                p.Field.Field.SetValue(parent, child);
-            else if (parent is IList array)
-                if (p.IsArray) array[p.Index] = child;
-                else           array.Add(child);
-            else
-                addMethodInfo.MakeGenericMethod(p.Field.ArrayTypes[p.Rank]).Invoke(parent, new[] {child});
-            return child;
-        }
-        
         public static IEnumerable<IOPointer> GetSheetPointers(this IOMetaAttribute type, string name) =>
             type.SheetsFields.Select((f, i) => new IOPointer(f, 0, i, V2Int.Zero, $"{name} {f.FrontType.SheetName}".Trim()));
         public static IEnumerable<IOPointer> GetPointers(this IOMetaAttribute type, V2Int pos) =>
             type.CompactFields.Select((f, i) => new IOPointer(f, 0, i, pos.Add(f.PosInType), ""));
+        public static IEnumerable<int> EnumerateIndices(this IOPointer p) =>
+            Enumerable.Range(0, p.Rank < p.Field.CollectionSize.Count ? p.Field.CollectionSize[p.Rank] : SheetsIO.MaxFreeSizeArrayElements);
+
 #endregion
 #region Writing 
         public static void ForEachChild(this object parent, IEnumerable<IOPointer> pointers, Action<IOPointer, object> action)
@@ -110,6 +86,36 @@ namespace SheetsIO
             child = null;
             return !p.IsFreeSize;
         }
+#endregion
+#region Reading
+
+        public static bool ForEachChild(this object parent, IEnumerable<IOPointer> pointers, Func<IOPointer, object, bool> func)
+        {
+            return pointers.All(p => func.Invoke(p, p.CreateObject(parent))); // todo: finish it. has to create all kinds of objects
+        }
+        
+        public static object AddChild(this IOPointer p, object parent, object child) //todo: do not use directly. include it to 'create child' method
+        {
+            if (p.Rank == 0)
+                p.Field.Field.SetValue(parent, child);
+            else if (parent is IList array)
+                if (p.IsArray) array[p.Index] = child;
+                else           array.Add(child);
+            else
+                addMethodInfo.MakeGenericMethod(p.Field.ArrayTypes[p.Rank]).Invoke(parent, new[] {child});
+            return child;
+        }
+        
+        public static object CreateObject(this IOPointer p, object parent) => p.AddChild(parent, Activator.CreateInstance(p.TargetType)); // todo array
+
+        public static object CreateFixedSizeArray(this IOPointer p, object parent) => NewArray(p, parent, p.Field.CollectionSize[p.Rank]);
+
+        public static object CreateFreeSizeArray(this IOPointer p, object parent, IList<IList<object>> values) =>
+            NewArray(p, parent, (p.Rank & 1) == 0
+                                    ? (values.Count - p.Pos.X) / p.Field.TypeSizes[p.Rank + 1].X
+                                    : (values.Skip(p.Pos.X).Take(p.Field.TypeSizes[p.Rank + 1].X).Max(v2 => v2.Count) - p.Pos.Y) / p.Field.TypeSizes[p.Rank + 1].Y);
+
+        static object NewArray(IOPointer p, object parent, int size) => p.AddChild(parent, Array.CreateInstance(p.Field.ArrayTypes[p.Rank + 1], size));
 #endregion
     }
 }
