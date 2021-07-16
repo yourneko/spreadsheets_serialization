@@ -21,21 +21,20 @@ namespace SheetsIO
         
         public bool ReadType(IOMetaAttribute type, string name, object obj)
         {
-            if (!obj.CreateChildren(type.GetSheetPointers($"{name} {type.SheetName}".Trim()), ReadSheetObject)) return false;
-            if (type.CompactFields.Count == 0) return true;
+            if (!obj.CreateChildren(type.GetSheetPointers(name), ReadSheetObject)) return false;
+            if (type.Regions.Count == 0) return true;
             if (!sheets.Contains(name)) return false;
             dictionary.Add(type.GetA1Range(name, SheetsIO.FirstCell), (type.GetPointers(V2Int.Zero), obj));
             return true;
         }
 
         bool ReadSheetObject(IOPointer p, object obj) => p.Rank == p.Field.Rank
-                                                             ? ReadType(p.Field.FrontType, p.Name, obj)
+                                                             ? ReadType(p.Field.Meta, p.Name, obj)
                                                              : obj.CreateChildren(IOPointer.GetChildrenSheets(p), ReadSheetObject);
 
         public bool TryApplyRange(ValueRange range)
         {
-            var (pointers, obj) = dictionary.First(pair => StringComparer.Ordinal.Equals(range.Range.GetSheetName(), pair.Key.GetSheetName())
-                                                        && StringComparer.Ordinal.Equals(range.Range.GetFirstCell(), pair.Key.GetFirstCell())).Value;
+            var (pointers, obj) = dictionary.First(pair => StringComparer.Ordinal.Equals(range.Range.GetSheetName(), pair.Key.GetSheetName())).Value;
             return obj.CreateChildren(pointers, new ReadRangeContext(range, serializer).ReadObject);
         }
     }

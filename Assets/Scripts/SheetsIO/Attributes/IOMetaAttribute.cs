@@ -12,10 +12,9 @@ namespace SheetsIO
         internal readonly string SheetName;
 
         internal bool Initialized { get; private set; }
-        internal Type Type { get; private set; }
         internal V2Int Size { get; private set; }
-        internal IReadOnlyList<IOFieldAttribute> CompactFields { get; private set; }
-        internal IReadOnlyList<IOFieldAttribute> SheetsFields { get; private set; }
+        internal IReadOnlyList<IOFieldAttribute> Regions { get; private set; }
+        internal IReadOnlyList<IOFieldAttribute> Sheets { get; private set; }
         internal bool Optional { get; private set; }
 
         /// <summary>Map this class to Google Spreadsheets.</summary>
@@ -29,25 +28,28 @@ namespace SheetsIO
         internal void CacheMeta(Type type)
         {
             Initialized = true;
-            Type        = type;
-            var allFields = type.GetFields (BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-                                .Select (field => field.GetIOAttribute ())
-                                .Where (x => x != null)
-                                .ToArray ();
-            if (allFields.Length == 0) 
+            var allFields = type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                                .Select(field => field.GetIOAttribute())
+                                .Where(x => x != null)
+                                .ToArray();
+            if (allFields.Length == 0)
                 throw new Exception($"Class {type.Name} has no MapFields! Add MapField attribute to some fields in class {type.Name}, or remove the MapClass attribute.");
             Optional = allFields.All(x => x.IsOptional);
-            SheetsFields     = allFields.Where (x => !string.IsNullOrEmpty(x.FrontType?.SheetName ?? string.Empty)).ToArray ();
-            CompactFields = allFields.Where (x => string.IsNullOrEmpty(x.FrontType?.SheetName ?? string.Empty))
-                                     .OrderBy (f => f.Field.GetCustomAttribute<IOPlacementAttribute>()?.SortOrder
-                                                 ?? (f.Rank == 0 || f.Rank == f.CollectionSize.Count ? 1000 : int.MaxValue + f.Rank - 2)) 
-                                     .ToArray ();
+            Sheets   = allFields.Where(x => !string.IsNullOrEmpty(x.Meta?.SheetName ?? string.Empty)).ToArray();
+            Regions = allFields.Where(x => string.IsNullOrEmpty(x.Meta?.SheetName ?? string.Empty))
+                               .OrderBy(f => f.FieldInfo.GetCustomAttribute<IOPlacementAttribute>()?.SortOrder
+                                          ?? (f.Rank == 0 || f.Rank == f.ElementsCount.Count ? 1000 : int.MaxValue + f.Rank - 2))
+                               .ToArray();
             Size = V2Int.Zero;
-            foreach (var f in CompactFields)
+            foreach (var f in Regions)
             {
                 f.PosInType = new V2Int(Size.X, 0);
-                Size        = new V2Int(Size.X + f.TypeSizes[0].X, Math.Max(Size.Y, f.TypeSizes[0].Y));
+                Size        = new V2Int(Size.X + f.Sizes[0].X, Math.Max(Size.Y, f.Sizes[0].Y));
             }
         }
+
+        internal string AppendNamePart(string parentName) => $"{parentName} {SheetName}".Trim();
+        internal IEnumerable<IOPointer> GetSheetPointers(string name) => Sheets.Select((f, i) => new IOPointer(f, 0, i, V2Int.Zero, AppendNamePart(name)));
+        internal IEnumerable<IOPointer> GetPointers(V2Int pos) => Regions.Select((f, i) => new IOPointer(f, 0, i, pos.Add(f.PosInType), ""));
     }
 }

@@ -17,8 +17,8 @@ namespace SheetsIO
         public bool ReadObject(IOPointer p, object parent) => p.IsValue 
                                                                ? TryReadValue(p, parent) 
                                                                : parent.CreateChildren(IOPointer.GetChildren(p), ReadObject);
-        bool TryReadValue(IOPointer p, object parent) =>
-            values.TryGetElement(p.Pos.X, out var column) && column.TryGetElement(p.Pos.Y, out var cell) && 
-            !(p.AddChild(parent, serializer.Deserialize(p.Field.ArrayTypes[p.Rank], cell)) is null);
+        bool TryReadValue(IOPointer p, object parent) => values.TryGetElement(p.Pos.X, out var column) 
+                                                      && column.TryGetElement(p.Pos.Y, out var cell) 
+                                                      && p.AddChild(parent, serializer.Deserialize(p.Field.Types[p.Rank], cell)) != null;
     }
 }

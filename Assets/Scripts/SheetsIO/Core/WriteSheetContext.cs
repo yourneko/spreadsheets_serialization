@@ -23,10 +23,8 @@ namespace SheetsIO
 
         void WriteValue(object value, V2Int pos)
         {
-            for (int i = Values.Count; i <= pos.X; i++)
-                Values.Add(new List<object>());
-            for (int i = Values[pos.X].Count; i < pos.Y; i++)
-                Values[pos.X].Add(null);
+            for (int i = Values.Count; i <= pos.X; i++) Values.Add(new List<object>());
+            for (int i = Values[pos.X].Count; i < pos.Y; i++) Values[pos.X].Add(null);
             Values[pos.X].Add(serializer.Serialize(value));
         }
     }

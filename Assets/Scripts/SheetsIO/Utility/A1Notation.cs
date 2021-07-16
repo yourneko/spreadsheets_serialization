@@ -9,7 +9,6 @@ namespace SheetsIO
         public static string GetA1Range(this IOMetaAttribute type, string sheet, string a2First) =>
             $"'{sheet.Trim()}'!{a2First}:{WriteA1 (type.Size.Add (ReadA1 (a2First)).Add(new V2Int(-1,-1)))}";
         public static string GetSheetName(this string range) => range.Split('!')[0].Replace("''", "'").Trim('\'', ' ');
-        public static string GetFirstCell(this string range) => range.Split('!')[1].Split(':')[0];
 
         static V2Int ReadA1(string a1) => new V2Int(Evaluate(a1.Where(char.IsLetter).Select(char.ToUpperInvariant), '@', SheetsIO.A1LettersCount),
                                                     Evaluate(a1.Where(char.IsDigit), '0', 10));

@@ -11,60 +11,43 @@ namespace SheetsIO
     { 
         /// <summary>NULL is a valid value for this field.</summary>
         public bool IsOptional;
-        internal readonly IReadOnlyList<int> CollectionSize;
+        internal readonly IReadOnlyList<int> ElementsCount;
         internal V2Int PosInType;
         
         internal bool Initialized { get; private set; }
-        internal IOMetaAttribute FrontType { get; private set; }
-        internal FieldInfo Field { get; private set; }
+        internal IOMetaAttribute Meta { get; private set; }
+        internal FieldInfo FieldInfo { get; private set; }
         internal int Rank { get; private set; }
-        internal IReadOnlyList<Type> ArrayTypes { get; private set; }
-        internal IReadOnlyList<V2Int> TypeSizes { get; private set; }
-        internal IReadOnlyList<V2Int> TypeOffsets { get; private set; }
+        internal IReadOnlyList<Type> Types { get; private set; }
+        internal IReadOnlyList<V2Int> Sizes { get; private set; }
 
         /// <summary>Map this field to Google Spreadsheets.</summary>
-        /// <param name="fixedCollectionSize">Fixed number of elements for each rank of array.</param>
-        public IOFieldAttribute(params int[] fixedCollectionSize)
+        /// <param name="elementsCount">Fixed number of elements for each rank of array.</param>
+        public IOFieldAttribute(params int[] elementsCount)
         {
-            CollectionSize = fixedCollectionSize;
+            ElementsCount = elementsCount;
         }
-
+        
         internal void CacheMeta(FieldInfo field)
         {
             Initialized = true;
-            Field       = field;
-            ArrayTypes  = GetArrayTypes(field.FieldType, Math.Max(CollectionSize.Count, 2)).ToArray();
-            Rank        = ArrayTypes.Count - 1;
-            FrontType   = ArrayTypes[Rank].GetIOAttribute ();
-            
-            var sizes   = new V2Int[ArrayTypes.Count];
-            sizes[Rank] = FrontType?.Size ?? new V2Int (1, 1);
-            for (int i = Rank; i > 0; i--)
-                sizes[i - 1] = CollectionSize.Count == 0
-                                   ? new V2Int((i & 1) > 0 ? sizes[i].X : 999, 999)
-                                   : sizes[i].Scale((int) Math.Pow(CollectionSize[i - 1], 1 - (i & 1)), (int) Math.Pow(CollectionSize[i - 1], i & 1));
-            TypeSizes   = sizes;
-            TypeOffsets = TypeSizes.Select((v2, i) => new V2Int(v2.X * (1 - (i & 1)), v2.Y * (i & 1))).ToArray();
-            if (Rank > 0) 
-                ValidateArrayField();
+            FieldInfo       = field;
+            Types  = field.FieldType.RepeatAggregated(Math.Max(ElementsCount.Count, 2), NextType).ToArray(); // t != typeof(string)
+            Rank        = Types.Count - 1;
+            Meta   = Types[Rank].GetIOAttribute ();
+            Sizes   = (Meta?.Size ?? new V2Int(1, 1)).RepeatAggregated(Rank, NextRankSize).Reverse().ToArray();
+
+            if (Rank == 0) return;
+            if (Types[Rank - 1].IsArray && ElementsCount.Count == 0)
+                throw new Exception($"Set array lengths for a field {FieldInfo.Name}, or use a collection that supports IList.Add method.");
+            if (!string.IsNullOrEmpty(Meta?.SheetName) &&FieldInfo.GetCustomAttribute<IOPlacementAttribute>() != null) 
+                throw new Exception($"Remove MapPlacement attribute from a field {FieldInfo.Name}. Instances of type {Types[Rank].Name} are placed on separate sheets.");
         }
 
-        void ValidateArrayField()
-        {
-            IsOptional = true; // todo: wrong. array is not optional, but it's always created with TRUE
-            if (ArrayTypes[Rank - 1].IsArray && CollectionSize.Count == 0)
-                throw new Exception($"Set array lengths for a field {Field.Name}, or use a collection that supports IList.Add method.");
-            if (!string.IsNullOrEmpty(FrontType?.SheetName) &&Field.GetCustomAttribute<IOPlacementAttribute>() != null) 
-                throw new Exception($"Remove MapPlacement attribute from a field {Field.Name}. Instances of type {FrontType.Type.Name} are placed on separate sheets.");
-        }
-        
-        static IEnumerable<Type> GetArrayTypes(Type fieldType, int max)
-        {
-            int rank = max;
-            var t = fieldType;
-            do yield return t;
-            while (--rank >= 0 && t != typeof(string) && (t = t.GetTypeInfo().GetInterfaces().FirstOrDefault(IsCollection)?.GetGenericArguments()[0]) != null);
-        }
+        internal int MaxCount(int rank) => rank < ElementsCount.Count ? ElementsCount[rank] : SheetsIO.MaxArrayElements;
+        static Type NextType(Type type, int rank) => type.GetTypeInfo().GetInterfaces().FirstOrDefault(IsCollection)?.GetGenericArguments()[0];
         static bool IsCollection(Type type) => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(ICollection<>);
+        V2Int NextRankSize(V2Int v2, int rank) => v2.Scale((rank & 1) == 0 ? MaxCount(rank - 1) : 1, 
+                                                           (rank & 1) == 0 ? 1 : MaxCount(rank - 1));
     }
 }

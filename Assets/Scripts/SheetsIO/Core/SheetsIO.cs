@@ -24,9 +24,9 @@ namespace SheetsIO
         {
             var spreadsheets = await service.GetSpreadsheetAsync(spreadsheet);
             var context = new ReadContext(spreadsheets.GetSheetsList(), serializer);
-            var type = typeof(T).GetIOAttribute();
+            var meta = typeof(T).GetIOAttribute();
             var result = Activator.CreateInstance<T>();
-            if (!context.ReadType(type, $"{sheet} {type.SheetName}".Trim(), result))
+            if (!context.ReadType(meta, meta.AppendNamePart(sheet), result))
                 throw new Exception("Can't parse the requested object. Some required sheets are missing in the provided spreadsheet");
 
             var valueRanges = await service.GetValueRanges(spreadsheet, context.Ranges);
@@ -43,7 +43,7 @@ namespace SheetsIO
         public Task<bool> WriteAsync<T>(T obj, string spreadsheet, string sheet = "")
         {
             var meta = typeof(T).GetIOAttribute();
-            return service.WriteRangesAsync(spreadsheet, new WriteContext(meta, $"{sheet} {meta.SheetName}".Trim(), obj, serializer).ValueRanges);
+            return service.WriteRangesAsync(spreadsheet, new WriteContext(meta, meta.AppendNamePart(sheet), obj, serializer).ValueRanges);
         }
 
         /// <summary>Creates a new ready-to-use instance of the serializer.</summary>

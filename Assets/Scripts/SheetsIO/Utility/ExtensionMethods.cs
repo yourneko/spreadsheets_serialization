@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using UnityEngine;
 
@@ -33,12 +32,6 @@ namespace SheetsIO
             return exists;
         }
         
-#region IOPointer
-        public static IEnumerable<IOPointer> GetSheetPointers(this IOMetaAttribute type, string name) =>
-            type.SheetsFields.Select((f, i) => new IOPointer(f, 0, i, V2Int.Zero, $"{name} {f.FrontType.SheetName}".Trim()));
-        public static IEnumerable<IOPointer> GetPointers(this IOMetaAttribute type, V2Int pos) =>
-            type.CompactFields.Select((f, i) => new IOPointer(f, 0, i, pos.Add(f.PosInType), ""));
-#endregion
 #region Writing 
         public static void ForEachChild(this object parent, IEnumerable<IOPointer> pointers, Action<IOPointer, object> action)
         {
@@ -51,7 +44,7 @@ namespace SheetsIO
         {
             if (parent != null && p.Rank == 0)
             {
-                child = p.Field.Field.GetValue(parent);
+                child = p.Field.FieldInfo.GetValue(parent);
                 return true;
             }
             if (parent is IList list && list.Count > p.Index)
@@ -64,9 +57,8 @@ namespace SheetsIO
         }
 #endregion
 #region Reading
-
         public static bool CreateChildren(this object parent, IEnumerable<IOPointer> pointers, Func<IOPointer, object, bool> func)
-        {
+        { 
             foreach (var p in pointers)
                 if (!func.Invoke(p, p.CreateObject(parent)) && !p.Optional) // todo: AddChild after testing (func.Invoke || Optional)
                     return p.IsFreeSize;
@@ -77,18 +69,26 @@ namespace SheetsIO
         {
             Debug.Log(p);
             if (p.Rank == 0)
-                p.Field.Field.SetValue(parent, child);
+                p.Field.FieldInfo.SetValue(parent, child);
             else if (parent is IList array)
                 if (p.IsArray) array[p.Index] = child;
                 else           array.Add(child);
             else
-                addMethodInfo.MakeGenericMethod(p.Field.ArrayTypes[p.Rank]).Invoke(parent, new[] {child});
+                addMethodInfo.MakeGenericMethod(p.Field.Types[p.Rank]).Invoke(parent, new[] {child});
             return child;
         }
 
         static object CreateObject(this IOPointer p, object o) => p.AddChild(o, p.IsArray
-                                                                                    ? Array.CreateInstance(p.Field.ArrayTypes[p.Rank + 1], p.MaxElements)
+                                                                                    ? Array.CreateInstance(p.Field.Types[p.Rank + 1], p.Field.MaxCount(p.Rank))
                                                                                     : Activator.CreateInstance(p.TargetType));
 #endregion
+        
+        public static IEnumerable<T> RepeatAggregated<T>(this T start, int max, Func<T, int, T> func)
+        {
+            int rank = max;
+            var value = start;
+            do yield return value;
+            while(--rank >= 0 && (value = func.Invoke(value, rank)) != null);
+        }
     }
 }
