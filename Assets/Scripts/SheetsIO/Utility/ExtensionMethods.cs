@@ -3,13 +3,12 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Google.Apis.Sheets.v4.Data;
+using UnityEngine;
 
 namespace SheetsIO
 {
     static class ExtensionMethods
     {
-#region Attributes & Reflection & metadata
         static readonly MethodInfo addMethodInfo = typeof(ICollection<>).GetMethod ("Add", BindingFlags.Instance | BindingFlags.Public);
         public static IOFieldAttribute GetIOAttribute(this FieldInfo field)
         {
@@ -27,40 +26,18 @@ namespace SheetsIO
             return attribute;
         }
 
-        public static IEnumerable<Type> GetArrayTypes(this Type fieldType, int max)
+        public static bool TryGetElement<T>(this IList<T> target, int index, out T result)
         {
-            int rank = max;
-            var t = fieldType;
-            do yield return t;
-            while (--rank >= 0 && t != typeof(string) &&
-                   (t = t.GetTypeInfo().GetInterfaces().FirstOrDefault(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(ICollection<>))
-                        ?.GetGenericArguments()[0]) != null);
+            bool exists = (target?.Count ?? 0) > index;
+            result = exists ? target[index] : default;
+            return exists;
         }
-
-        public static object AddChild(this IOFieldAttribute field, object parent, int rank, int index, object child) // todo rm
-        {
-            if (rank == 0)
-                field.Field.SetValue(parent, child);
-            else if (parent is IList array)
-                if (array.Count > index)
-                    array[index] = child;
-                else
-                    array.Add(child);
-            else
-                addMethodInfo.MakeGenericMethod(field.ArrayTypes[rank]).Invoke(parent, new[] {child});
-            return child;
-        }
-#endregion
+        
 #region Google Sheets A1 Notation
+        public static string GetSheetName(this string range) => range.Split('!')[0].Replace("''", "'").Trim('\'', ' ');
+        public static string GetFirstCell(this string range) => range.Split('!')[1].Split(':')[0];
         public static string GetA1Range(this IOMetaAttribute type, string sheet, string a2First) =>
             $"'{sheet.Trim()}'!{a2First}:{WriteA1 (type.Size.Add (ReadA1 (a2First)).Add(new V2Int(-1,-1)))}";
-
-        public static bool IsSameRange(this ValueRange range, string name) =>
-            StringComparer.Ordinal.Equals(range.Range.GetSheetFromRange(), name.GetSheetFromRange())
-         && StringComparer.OrdinalIgnoreCase.Equals(range.Range.GetFirstCellFromRange(), name.GetFirstCellFromRange());
-
-        public static string GetSheetFromRange(this string range) => range.Split('!')[0].Replace("''", "'").Trim('\'', ' ');
-        static string GetFirstCellFromRange(this string range) => range.Split('!')[1].Split(':')[0];
 
         static V2Int ReadA1(string a1) => new V2Int(Evaluate(a1.Where(char.IsLetter).Select(char.ToUpperInvariant), '@', SheetsIO.A1LettersCount),
                                                     Evaluate(a1.Where(char.IsDigit), '0', 10));
@@ -79,8 +56,7 @@ namespace SheetsIO
         }
 #endregion
 #region IOPointer
-        public static object CreateObject(this IOPointer p, object parent) => 
-            p.AddChild(parent, Activator.CreateInstance(p.Field.ArrayTypes[p.Rank]));
+        public static object CreateObject(this IOPointer p, object parent) => p.AddChild(parent, Activator.CreateInstance(p.TargetType)); // todo array
 
         public static object CreateFixedSizeArray(this IOPointer p, object parent) => NewArray(p, parent, p.Field.CollectionSize[p.Rank]);
 
@@ -94,37 +70,46 @@ namespace SheetsIO
         public static IEnumerable<int> EnumerateIndices(this IOPointer p) =>
             Enumerable.Range(0, p.Rank < p.Field.CollectionSize.Count ? p.Field.CollectionSize[p.Rank] : SheetsIO.MaxFreeSizeArrayElements);
 
-        static object AddChild(this IOPointer p, object parent, object child)
+        public static object AddChild(this IOPointer p, object parent, object child)//todo: do not use directly. include it to 'create child' method
         {
             if (p.Rank == 0)
                 p.Field.Field.SetValue(parent, child);
             else if (parent is IList array)
-                if (array.Count > p.Index)
-                    array[p.Index] = child;
-                else
-                    array.Add(child);
+                if (p.IsArray) array[p.Index] = child;
+                else           array.Add(child);
             else
                 addMethodInfo.MakeGenericMethod(p.Field.ArrayTypes[p.Rank]).Invoke(parent, new[] {child});
             return child;
         }
-
+        
         public static IEnumerable<IOPointer> GetSheetPointers(this IOMetaAttribute type, string name) =>
             type.SheetsFields.Select((f, i) => new IOPointer(f, 0, i, V2Int.Zero, $"{name} {f.FrontType.SheetName}".Trim()));
         public static IEnumerable<IOPointer> GetPointers(this IOMetaAttribute type, V2Int pos) =>
             type.CompactFields.Select((f, i) => new IOPointer(f, 0, i, pos.Add(f.PosInType), ""));
-
-        public static object GetChild(this object parent, IOPointer p) => p.Rank == 0
-                                                                              ? p.Field.Field.GetValue(parent)
-                                                                              : parent is IList list
-                                                                                  ? list[p.Index]
-                                                                                  : throw new Exception();
 #endregion
-
-        public static bool TryGetElement<T>(this IList<T> target, int index, out T result)
+#region Writing 
+        public static void ForEachChild(this object parent, IEnumerable<IOPointer> pointers, Action<IOPointer, object> action)
         {
-            bool exists = (target?.Count ?? 0) > index;
-            result = exists ? target[index] : default;
-            return exists;
+            using var e = pointers.GetEnumerator();
+            while (e.MoveNext() && parent.TryGetChild(e.Current, out var child))
+                action.Invoke(e.Current, child);
         }
+
+        static bool TryGetChild(this object parent, IOPointer p, out object child)
+        {
+            if (parent != null && p.Rank == 0)
+            {
+                child = p.Field.Field.GetValue(parent);
+                return true;
+            }
+            if (parent is IList list && list.Count > p.Index)
+            {
+                child = list[p.Index];
+                return true;
+            }
+            child = null;
+            return !p.IsFreeSize;
+        }
+#endregion
     }
 }
