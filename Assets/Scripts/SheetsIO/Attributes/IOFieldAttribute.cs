@@ -9,7 +9,7 @@ namespace SheetsIO
     [AttributeUsage (AttributeTargets.Field)]
     public sealed class IOFieldAttribute : Attribute
     { 
-        /// <summary>Empty optional fields are valid. (Always TRUE for collections)</summary>
+        /// <summary>NULL is a valid value for this field.</summary>
         public bool IsOptional;
         internal readonly IReadOnlyList<int> CollectionSize;
         internal V2Int PosInType;
@@ -49,22 +49,12 @@ namespace SheetsIO
                 ValidateArrayField();
         }
 
-        internal int GetMaxCollectionSize(int rank) => rank >= Rank                ? -1 :
-                                                       rank < CollectionSize.Count ? CollectionSize[rank] : SheetsIO.MaxFreeSizeArrayElements;
-
         void ValidateArrayField()
         {
-            IsOptional = true;
-            if (!string.IsNullOrEmpty(FrontType?.SheetName)) ValidateSheetsArrayField();
-            if ((FrontType?.Optional ?? false) && CollectionSize.Count > 0)
-                throw new Exception($"Set array lengths for a field {Field.Name}, or add some non-optional fields to class {FrontType.Type.Name}");
-        }
-
-        void ValidateSheetsArrayField()
-        {
+            IsOptional = true; // todo: wrong. array is not optional, but it's always created with TRUE
             if (ArrayTypes[Rank - 1].IsArray && CollectionSize.Count == 0)
                 throw new Exception($"Set array lengths for a field {Field.Name}, or use a collection that supports IList.Add method.");
-            if (Field.GetCustomAttribute<IOPlacementAttribute>() != null)
+            if (!string.IsNullOrEmpty(FrontType?.SheetName) &&Field.GetCustomAttribute<IOPlacementAttribute>() != null) 
                 throw new Exception($"Remove MapPlacement attribute from a field {Field.Name}. Instances of type {FrontType.Type.Name} are placed on separate sheets.");
         }
         
@@ -73,9 +63,8 @@ namespace SheetsIO
             int rank = max;
             var t = fieldType;
             do yield return t;
-            while (--rank >= 0 && t != typeof(string) &&
-                   (t = t.GetTypeInfo().GetInterfaces().FirstOrDefault(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(ICollection<>))
-                        ?.GetGenericArguments()[0]) != null);
+            while (--rank >= 0 && t != typeof(string) && (t = t.GetTypeInfo().GetInterfaces().FirstOrDefault(IsCollection)?.GetGenericArguments()[0]) != null);
         }
+        static bool IsCollection(Type type) => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(ICollection<>);
     }
 }

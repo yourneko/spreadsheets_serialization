@@ -9,7 +9,7 @@ namespace SheetsIO
     public sealed class SheetsIO : IDisposable
     {
         internal const string FirstCell = "B2";
-        internal const int MaxFreeSizeArrayElements = 100;
+        internal const int MaxArrayElements = 100;
         internal const int A1LettersCount = 26;
         
         readonly SheetsService service;
@@ -23,16 +23,14 @@ namespace SheetsIO
         public async Task<T> ReadAsync<T>(string spreadsheet, string sheet = "")
         {
             var spreadsheets = await service.GetSpreadsheetAsync(spreadsheet);
-            var context = new ReadContext(spreadsheets.GetSheetsList());
+            var context = new ReadContext(spreadsheets.GetSheetsList(), serializer);
             var type = typeof(T).GetIOAttribute();
             var result = Activator.CreateInstance<T>();
             if (!context.ReadType(type, $"{sheet} {type.SheetName}".Trim(), result))
                 throw new Exception("Can't parse the requested object. Some required sheets are missing in the provided spreadsheet");
 
-            var valueRanges = await service.GetValueRanges(spreadsheet, context.Dictionary.Select(x => x.Key));
-            if (!valueRanges.All(range => context.Dictionary.First(pair => StringComparer.Ordinal.Equals(range.Range.GetSheetName(), pair.Key.GetSheetName())
-                                                                        && StringComparer.Ordinal.Equals(range.Range.GetFirstCell(), pair.Key.GetFirstCell()))
-                                                 .Value.Invoke(range, serializer)))
+            var valueRanges = await service.GetValueRanges(spreadsheet, context.Ranges);
+            if (!valueRanges.All(context.TryApplyRange))
                 throw new Exception("Failed to assemble the object.");
             return result;
         }

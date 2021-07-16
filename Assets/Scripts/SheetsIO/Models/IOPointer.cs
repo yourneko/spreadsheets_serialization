@@ -14,10 +14,12 @@ namespace SheetsIO
         public bool IsValue => Rank == Field.Rank && Field.FrontType is null;
         public bool IsArray => Field.ArrayTypes[Rank].IsArray;
         public bool IsFreeSize => Field.Rank > 0 && Field.CollectionSize.Count == 0;
-        public bool Optional => Rank > 0 || Field.IsOptional;
+        public bool Optional => Field.IsOptional 
+                             || Rank > 0 && Field.CollectionSize.Count > 0;
         public Type TargetType => Field.ArrayTypes[Rank];
+        public int MaxElements => IsArray ? Rank < Field.CollectionSize.Count ? Field.CollectionSize[Rank] : SheetsIO.MaxArrayElements : 0;
 
-        internal IOPointer(IOFieldAttribute field, int rank, int index, V2Int pos, string name)
+        public IOPointer(IOFieldAttribute field, int rank, int index, V2Int pos, string name)
         {
             Field = field;
             Rank  = rank;
@@ -29,12 +31,12 @@ namespace SheetsIO
         public static IEnumerable<IOPointer> GetChildrenSheets(IOPointer p) => 
             p.Rank == p.Field.Rank
                 ? p.Field.FrontType.GetSheetPointers(p.Name)
-                : p.EnumerateIndices().Select(i => new IOPointer(p.Field, p.Rank + 1, i, V2Int.Zero, $"{p.Name} {i + 1}"));
+                : Enumerable.Range(0, p.MaxElements).Select(i => new IOPointer(p.Field, p.Rank + 1, i, V2Int.Zero, $"{p.Name} {i + 1}"));
             
         public static IEnumerable<IOPointer> GetChildren(IOPointer p) => 
             p.Rank == p.Field.Rank
                 ? p.Field.FrontType.GetPointers(p.Pos)
-                : p.EnumerateIndices().Select(i => new IOPointer(p.Field, p.Rank + 1, i, p.Pos.Add(p.Field.TypeOffsets[p.Rank + 1].Scale(i)), ""));
+                : Enumerable.Range(0, p.MaxElements).Select(i => new IOPointer(p.Field, p.Rank + 1, i, p.Pos.Add(p.Field.TypeOffsets[p.Rank + 1].Scale(i)), ""));
 
         public override string ToString() => string.IsNullOrEmpty(Name)
                        ? $"{TargetType.FullName} [#{Index}]. Pos = ({Pos.X},{Pos.Y})"

@@ -9,7 +9,7 @@ namespace SheetsIO
     [AttributeUsage (AttributeTargets.Class)]
     public sealed class IOMetaAttribute : Attribute
     {
-        public readonly string SheetName;
+        internal readonly string SheetName;
 
         internal bool Initialized { get; private set; }
         internal Type Type { get; private set; }

@@ -16,7 +16,7 @@ namespace SheetsIO
         public static async Task<bool> WriteRangesAsync(this SheetsService service, string spreadsheet, IList<ValueRange> values)
         {
             var hashset = new HashSet<string> (values.Select (range => range.Range.GetSheetName()));
-            var hasRequiredSheets = await service.CreateSheetsAsync (spreadsheet, hashset);
+            bool hasRequiredSheets = await service.CreateSheetsAsync (spreadsheet, hashset);
             if (!hasRequiredSheets)
                 return false;
 
@@ -39,7 +39,7 @@ namespace SheetsIO
         static async Task<bool> CreateSheetsAsync(this SheetsService service, string spreadsheet, IEnumerable<string> requiredSheets)
         {
             var spreadsheets = await service.GetSpreadsheetAsync(spreadsheet);
-            var sheetsToCreate = requiredSheets.Except(spreadsheets.GetSheetsList()).ToArray();
+            string[] sheetsToCreate = requiredSheets.Except(spreadsheets.GetSheetsList()).ToArray();
             if (sheetsToCreate.Length == 0) return true;
             
             var result = await service.Spreadsheets.BatchUpdate (AddSheet (sheetsToCreate), spreadsheet).AddBackOffHandler().ExecuteAsync ();
