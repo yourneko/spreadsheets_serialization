@@ -15,7 +15,7 @@ namespace SheetsIO
     {
         public static async Task<bool> WriteRangesAsync(this SheetsService service, string spreadsheet, IList<ValueRange> values)
         {
-            var hashset = new HashSet<string> (values.Select (range => range.Range.GetSheetFromRange()));
+            var hashset = new HashSet<string> (values.Select (range => range.Range.GetSheetName()));
             var hasRequiredSheets = await service.CreateSheetsAsync (spreadsheet, hashset);
             if (!hasRequiredSheets)
                 return false;

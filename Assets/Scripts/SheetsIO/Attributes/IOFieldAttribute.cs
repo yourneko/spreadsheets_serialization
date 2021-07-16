@@ -33,7 +33,7 @@ namespace SheetsIO
         {
             Initialized = true;
             Field       = field;
-            ArrayTypes  = field.FieldType.GetArrayTypes(Math.Max(CollectionSize.Count, 2)).ToArray();
+            ArrayTypes  = GetArrayTypes(field.FieldType, Math.Max(CollectionSize.Count, 2)).ToArray();
             Rank        = ArrayTypes.Count - 1;
             FrontType   = ArrayTypes[Rank].GetIOAttribute ();
             
@@ -56,7 +56,7 @@ namespace SheetsIO
         {
             IsOptional = true;
             if (!string.IsNullOrEmpty(FrontType?.SheetName)) ValidateSheetsArrayField();
-            if ((FrontType?.OptionalInstance ?? false) && CollectionSize.Count > 0)
+            if ((FrontType?.Optional ?? false) && CollectionSize.Count > 0)
                 throw new Exception($"Set array lengths for a field {Field.Name}, or add some non-optional fields to class {FrontType.Type.Name}");
         }
 
@@ -66,6 +66,16 @@ namespace SheetsIO
                 throw new Exception($"Set array lengths for a field {Field.Name}, or use a collection that supports IList.Add method.");
             if (Field.GetCustomAttribute<IOPlacementAttribute>() != null)
                 throw new Exception($"Remove MapPlacement attribute from a field {Field.Name}. Instances of type {FrontType.Type.Name} are placed on separate sheets.");
+        }
+        
+        static IEnumerable<Type> GetArrayTypes(Type fieldType, int max)
+        {
+            int rank = max;
+            var t = fieldType;
+            do yield return t;
+            while (--rank >= 0 && t != typeof(string) &&
+                   (t = t.GetTypeInfo().GetInterfaces().FirstOrDefault(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(ICollection<>))
+                        ?.GetGenericArguments()[0]) != null);
         }
     }
 }

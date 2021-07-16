@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -13,6 +14,8 @@ namespace SheetsIO
         public bool IsValue => Rank == Field.Rank && Field.FrontType is null;
         public bool IsArray => Field.ArrayTypes[Rank].IsArray;
         public bool IsFreeSize => Field.Rank > 0 && Field.CollectionSize.Count == 0;
+        public bool Optional => Rank > 0 || Field.IsOptional;
+        public Type TargetType => Field.ArrayTypes[Rank];
 
         internal IOPointer(IOFieldAttribute field, int rank, int index, V2Int pos, string name)
         {
@@ -32,5 +35,9 @@ namespace SheetsIO
             p.Rank == p.Field.Rank
                 ? p.Field.FrontType.GetPointers(p.Pos)
                 : p.EnumerateIndices().Select(i => new IOPointer(p.Field, p.Rank + 1, i, p.Pos.Add(p.Field.TypeOffsets[p.Rank + 1].Scale(i)), ""));
+
+        public override string ToString() => string.IsNullOrEmpty(Name)
+                       ? $"{TargetType.FullName} [#{Index}]. Pos = ({Pos.X},{Pos.Y})"
+                       : $"{TargetType.FullName} [#{Index}]. Name = {Name}"; 
     }
 }

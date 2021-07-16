@@ -16,7 +16,7 @@ namespace SheetsIO
         internal V2Int Size { get; private set; }
         internal IReadOnlyList<IOFieldAttribute> CompactFields { get; private set; }
         internal IReadOnlyList<IOFieldAttribute> SheetsFields { get; private set; }
-        internal bool OptionalInstance { get; private set; }
+        internal bool Optional { get; private set; }
 
         /// <summary>Map this class to Google Spreadsheets.</summary>
         /// <param name="sheetName">Types with a sheet name always occupy the whole sheet.</param>
@@ -36,7 +36,7 @@ namespace SheetsIO
                                 .ToArray ();
             if (allFields.Length == 0) 
                 throw new Exception($"Class {type.Name} has no MapFields! Add MapField attribute to some fields in class {type.Name}, or remove the MapClass attribute.");
-            OptionalInstance = allFields.All(x => x.IsOptional);
+            Optional = allFields.All(x => x.IsOptional);
             SheetsFields     = allFields.Where (x => !string.IsNullOrEmpty(x.FrontType?.SheetName ?? string.Empty)).ToArray ();
             CompactFields = allFields.Where (x => string.IsNullOrEmpty(x.FrontType?.SheetName ?? string.Empty))
                                      .OrderBy (f => f.Field.GetCustomAttribute<IOPlacementAttribute>()?.SortOrder
