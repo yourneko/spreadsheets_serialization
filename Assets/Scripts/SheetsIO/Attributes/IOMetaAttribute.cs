@@ -6,43 +6,39 @@ using System.Reflection;
 namespace SheetsIO
 {
     /// <summary>Contains metadata of classes.</summary>
-    [AttributeUsage (AttributeTargets.Class)]
+    [AttributeUsage(AttributeTargets.Class)]
     public sealed class IOMetaAttribute : Attribute
     {
         internal readonly string SheetName;
 
         internal bool Initialized { get; private set; }
+        internal Type Type;
         internal V2Int Size { get; private set; }
         internal IReadOnlyList<IOFieldAttribute> Regions { get; private set; }
-        internal IReadOnlyList<IOFieldAttribute> Sheets { get; private set; }
-        internal bool Optional { get; private set; }
+        IReadOnlyList<IOFieldAttribute> Sheets { get; set; }
 
         /// <summary>Map this class to Google Spreadsheets.</summary>
         /// <param name="sheetName">Types with a sheet name always occupy the whole sheet.</param>
         /// <remarks>Avoid loops in hierarchy of types. It will cause the stack overflow.</remarks>
-        public IOMetaAttribute(string sheetName = null)
-        {
+        public IOMetaAttribute(string sheetName = null) {
             SheetName = sheetName;
         }
 
-        internal void CacheMeta(Type type)
-        {
+        internal void CacheMeta(Type type) {
             Initialized = true;
+            Type        = type;
             var allFields = type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-                                .Select(field => field.GetIOAttribute())
-                                .Where(x => x != null)
-                                .ToArray();
+                                .Select(field => field.GetIOAttribute()).Where(x => x != null).ToArray();
             if (allFields.Length == 0)
-                throw new Exception($"Class {type.Name} has no MapFields! Add MapField attribute to some fields in class {type.Name}, or remove the MapClass attribute.");
-            Optional = allFields.All(x => x.IsOptional);
+                throw new Exception(
+                    $"Class {type.Name} has no MapFields! Add MapField attribute to some fields in class {type.Name}, or remove the MapClass attribute.");
             Sheets   = allFields.Where(x => !string.IsNullOrEmpty(x.Meta?.SheetName ?? string.Empty)).ToArray();
             Regions = allFields.Where(x => string.IsNullOrEmpty(x.Meta?.SheetName ?? string.Empty))
                                .OrderBy(f => f.FieldInfo.GetCustomAttribute<IOPlacementAttribute>()?.SortOrder
                                           ?? (f.Rank == 0 || f.Rank == f.ElementsCount.Count ? 1000 : int.MaxValue + f.Rank - 2))
                                .ToArray();
             Size = V2Int.Zero;
-            foreach (var f in Regions)
-            {
+            foreach (var f in Regions) {
                 f.PosInType = new V2Int(Size.X, 0);
                 Size        = new V2Int(Size.X + f.Sizes[0].X, Math.Max(Size.Y, f.Sizes[0].Y));
             }

@@ -7,18 +7,21 @@ namespace SheetsIO
     {
         readonly IList<IList<object>> values;
         readonly IValueSerializer serializer;
+        public SheetsIO.ReadObjectDelegate Delegate => TryCreate;
 
-        public ReadRangeContext(ValueRange range, IValueSerializer s)
-        {
+        public ReadRangeContext(ValueRange range, IValueSerializer s) {
             values     = range.Values;
             serializer = s;
         }
-            
-        public bool ReadObject(IOPointer p, object parent) => p.IsValue 
-                                                               ? TryReadValue(p, parent) 
-                                                               : parent.CreateChildren(IOPointer.GetChildren(p), ReadObject);
-        bool TryReadValue(IOPointer p, object parent) => values.TryGetElement(p.Pos.X, out var column) 
-                                                      && column.TryGetElement(p.Pos.Y, out var cell) 
-                                                      && p.AddChild(parent, serializer.Deserialize(p.Field.Types[p.Rank], cell)) != null;
+
+        bool TryCreate(IOPointer p, out object o) => (p.IsValue
+                                                          ? TryRead(p, out o)
+                                                          : (o = IOPointer.GetChildren(p).TryGetChildren(Delegate, out var l) ? p.MakeObject(l) : null) != null)
+                                                  || p.Optional;
+
+        bool TryRead(IOPointer p, out object result) => (result = values.TryGetElement(p.Pos.X, out var column) && 
+                                                                  column.TryGetElement(p.Pos.Y, out var cell)
+                                                                      ? serializer.Deserialize(p.Field.Types[p.Rank], cell)
+                                                                      : null) != null || p.Optional;
     }
 }
