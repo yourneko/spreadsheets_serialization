@@ -32,10 +32,10 @@ namespace SheetsIO
         }
 
         public static IEnumerable<T> RepeatAggregated<T>(this T start, int max, Func<T, int, T> func) {
-            int rank = max; // kind of Linq.Aggregate, but after each step it returns a current value
+            int i = max;
             var value = start;
-            do yield return value;
-            while (--rank >= 0 && (value = func.Invoke(value, rank)) != null);
+            do yield return value; // kind of Enumerable.Aggregate(), but after each step returns a current value
+            while (--i >= 0 && (value = func(value, i)) != null);
         }
         
         public static void ForEachChild(this object parent, IEnumerable<IOPointer> pointers, Action<IOPointer, object> action) {
